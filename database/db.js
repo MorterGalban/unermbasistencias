@@ -96,8 +96,10 @@ const pool = mysql.createPool(getPoolConfig());
 
 // Garantizar que toda conexión nueva en el pool aplique la zona horaria legal de Venezuela (UTC-4)
 pool.on('connection', (conn) => {
-  conn.query("SET time_zone = '-04:00';").catch(err => {
-    console.warn('[DB] Advertencia al configurar time_zone en conexión MySQL:', err.message);
+  conn.query("SET time_zone = '-04:00';", (err) => {
+    if (err) {
+      console.warn('[DB] Advertencia al configurar time_zone en conexión MySQL:', err.message);
+    }
   });
 });
 

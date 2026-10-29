@@ -85,20 +85,21 @@ app.use((err, req, res, next) => {
   });
 });
 
-async function startServer() {
-  try {
-    await initDatabase();
-  } catch (err) {
-    console.error('[SERVER] Advertencia: Error durante initDatabase inicial (se reintentará en conexiones entrantes):', err.message);
-  }
-
-  app.listen(PORT, HOST, () => {
+function startServer() {
+  const server = app.listen(PORT, HOST, () => {
     console.log(`================================================================`);
     console.log(`UNERMB - PNF EN INFORMÁTICA | CONTROL DE ASISTENCIA QR`);
     console.log(`Servidor activo y escuchando en: http://${HOST}:${PORT}`);
     console.log(`Base de datos persistente: MySQL (Railway Production Ready)`);
     console.log(`================================================================`);
   });
+
+  // Inicializar base de datos en segundo plano sin bloquear el arranque del puerto HTTP
+  initDatabase().catch(err => {
+    console.error('[SERVER] Advertencia: Error durante initDatabase inicial (se reintentará en conexiones entrantes):', err.message);
+  });
+
+  return server;
 }
 
 if (require.main === module) {
