@@ -63,7 +63,7 @@ const DocenteModule = {
     const photoEl = document.getElementById('docente-welcome-photo');
 
     if (nameEl) nameEl.textContent = `${user.nombre} ${user.apellido}`;
-    if (ciEl) ciEl.textContent = `V-${user.cedula}`;
+    if (ciEl) ciEl.textContent = typeof formatCedula === 'function' ? formatCedula(user.cedula) : user.cedula;
     if (photoEl) photoEl.src = user.foto_carnet_url || '/multimedia/uner.png';
   },
 
@@ -411,10 +411,10 @@ const DocenteModule = {
             </div>
             <div style="text-align: right;">
               <span style="font-weight: 700; color: var(--unermb-blue-dark); font-size: 0.9rem;">
-                ${new Date(item.fecha_hora).toLocaleTimeString()}
+                ${typeof formatVenezuelaDateTime === 'function' ? formatVenezuelaDateTime(item.fecha_hora).time : new Date(item.fecha_hora).toLocaleTimeString()}
               </span>
               <div style="font-size: 0.72rem; color: var(--text-muted);">
-                ${new Date(item.fecha_hora).toLocaleDateString()}
+                ${typeof formatVenezuelaDateTime === 'function' ? formatVenezuelaDateTime(item.fecha_hora).date : new Date(item.fecha_hora).toLocaleDateString()}
               </div>
             </div>
           </div>

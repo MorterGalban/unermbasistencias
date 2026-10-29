@@ -1,3 +1,6 @@
+// Forzar zona horaria legal de Venezuela (HLV / UTC-4) en todo el entorno de ejecución Node.js
+process.env.TZ = 'America/Caracas';
+
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
@@ -47,16 +50,26 @@ app.use('/api/auth', authRoutes);
 app.use('/api/superroot', superrootRoutes);
 app.use('/api/docente', docenteRoutes);
 
-// Ruta de comprobación de salud del sistema
-app.get('/api/health', (req, res) => {
+// Ruta de comprobación de salud del sistema (compatible con Railway y monitoreo)
+const healthHandler = (req, res) => {
+  const now = new Date();
   res.json({
     status: 'ONLINE',
     database: 'MySQL',
     institucion: 'UNIVERSIDAD NACIONAL EXPERIMENTAL "RAFAEL MARÍA BARALT"',
     programa: 'PNF EN INFORMÁTICA',
-    server_time: new Date().toISOString()
+    timezone: 'America/Caracas (HLV / UTC-4)',
+    hora_venezuela: new Intl.DateTimeFormat('es-VE', {
+      timeZone: 'America/Caracas',
+      dateStyle: 'full',
+      timeStyle: 'long'
+    }).format(now),
+    server_time_iso: now.toISOString()
   });
-});
+};
+
+app.get('/api/health', healthHandler);
+app.get('/health', healthHandler);
 
 // Redireccionar todas las rutas no reconocidas al frontend Single-Page Application
 app.get('*', (req, res) => {

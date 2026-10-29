@@ -100,7 +100,7 @@ const RegisterModule = {
     const confirmPassInput = document.getElementById('reg-confirm-password');
 
     const regexAlpha = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/;
-    const regexCedula = /^\d{1,9}$/;
+    const regexCedula = /^\d{1,8}$/;
     const regexEmail = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
     const validateAlphaField = (input, errElId, fieldName) => {
@@ -149,11 +149,11 @@ const RegisterModule = {
 
     if (cedulaInput) {
       cedulaInput.addEventListener('input', () => {
-        cedulaInput.value = cedulaInput.value.replace(/\D/g, '').slice(0, 9);
+        cedulaInput.value = cedulaInput.value.replace(/\D/g, '').slice(0, 8);
         const val = cedulaInput.value;
         const errEl = document.getElementById('error-reg-cedula');
         if (val && !regexCedula.test(val)) {
-          errEl.textContent = 'Solo números (máximo 9 dígitos).';
+          errEl.textContent = 'Solo números (máximo 8 dígitos).';
           cedulaInput.classList.add('is-invalid');
         } else {
           errEl.textContent = '';
@@ -198,11 +198,27 @@ const RegisterModule = {
 
     const nombre = document.getElementById('reg-nombre').value.trim();
     const apellido = document.getElementById('reg-apellido').value.trim();
-    const cedula = document.getElementById('reg-cedula').value.trim();
+    const tipoCedulaEl = document.getElementById('reg-tipo-cedula');
+    const tipoCedula = tipoCedulaEl ? tipoCedulaEl.value : 'V';
+    const rawCedula = document.getElementById('reg-cedula').value.trim();
+    const cedulaDigitos = rawCedula.replace(/\D/g, '').slice(0, 8);
+    const cedula = `${tipoCedula}-${cedulaDigitos}`;
     const email = document.getElementById('reg-email').value.trim();
     const password = document.getElementById('reg-password').value;
     const confirm_password = document.getElementById('reg-confirm-password').value;
     const submitBtn = document.getElementById('btn-submit-registration');
+
+    // Validar cédula (hasta 8 dígitos)
+    if (!cedulaDigitos || cedulaDigitos.length === 0) {
+      showToast('Debe ingresar los dígitos de su Cédula de Identidad.', 'error');
+      document.getElementById('reg-cedula').focus();
+      return;
+    }
+
+    if (cedulaDigitos.length > 8) {
+      showToast('La Cédula de Identidad no puede exceder los 8 caracteres numéricos.', 'error');
+      return;
+    }
 
     // Validar foto tipo carnet
     if (!this.uploadedFotoFile) {
@@ -228,6 +244,7 @@ const RegisterModule = {
       const formData = new FormData();
       formData.append('nombre', nombre);
       formData.append('apellido', apellido);
+      formData.append('tipo_cedula', tipoCedula);
       formData.append('cedula', cedula);
       formData.append('email', email);
       formData.append('password', password);

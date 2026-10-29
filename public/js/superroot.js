@@ -141,10 +141,10 @@ const SuperrootModule = {
             <div class="docente-profile-data">
               <span class="badge badge-pendiente" style="margin-bottom: 0.3rem;">Solicitud Pendiente</span>
               <div class="docente-fullname">${docente.nombre} ${docente.apellido}</div>
-              <div class="docente-meta-item"><strong>C.I.:</strong> V-${docente.cedula}</div>
+              <div class="docente-meta-item"><strong>C.I.:</strong> ${typeof formatCedula === 'function' ? formatCedula(docente.cedula) : docente.cedula}</div>
               <div class="docente-meta-item"><strong>Email:</strong> ${docente.email}</div>
               <div class="docente-meta-item" style="font-size: 0.72rem; color: var(--text-muted);">
-                <strong>Fecha:</strong> ${new Date(docente.created_at).toLocaleString()}
+                <strong>Fecha:</strong> ${typeof formatVenezuelaDateTime === 'function' ? formatVenezuelaDateTime(docente.created_at).full : new Date(docente.created_at).toLocaleString()}
               </div>
             </div>
           </div>
@@ -257,7 +257,7 @@ const SuperrootModule = {
               <span style="font-size: 0.78rem; color: var(--text-muted);">${doc.email}</span>
               ${esAdmin ? '<span class="badge" style="background:#0f172a; color:#fff; font-size:0.65rem; margin-left:4px;">ADMIN</span>' : ''}
             </td>
-            <td><strong>V-${doc.cedula}</strong></td>
+            <td><strong>${typeof formatCedula === 'function' ? formatCedula(doc.cedula) : doc.cedula}</strong></td>
             <td>
               <div style="display: flex; flex-wrap: wrap; gap: 4px; max-width: 250px;">
                 ${materiasList || '<span style="color: var(--text-muted); font-size:0.75rem;">Sin materias</span>'}
@@ -374,7 +374,7 @@ const SuperrootModule = {
             </td>
             <td>
               <strong>${log.nombre ? `${log.nombre} ${log.apellido}` : 'Sistema / Anónimo'}</strong><br>
-              <span style="font-size: 0.72rem; color: var(--text-muted);">${log.cedula ? `V-${log.cedula}` : ''}</span>
+              <span style="font-size: 0.72rem; color: var(--text-muted);">${log.cedula ? (typeof formatCedula === 'function' ? formatCedula(log.cedula) : log.cedula) : ''}</span>
             </td>
             <td>
               <div style="font-size: 0.82rem; word-break: break-word; max-width: 380px;">
@@ -386,10 +386,10 @@ const SuperrootModule = {
             </td>
             <td>
               <span style="font-size: 0.78rem; font-weight: 700; color: var(--unermb-blue-dark);">
-                ${new Date(log.created_at).toLocaleTimeString()}
+                ${typeof formatVenezuelaDateTime === 'function' ? formatVenezuelaDateTime(log.created_at).time : new Date(log.created_at).toLocaleTimeString()}
               </span><br>
               <span style="font-size: 0.72rem; color: var(--text-muted);">
-                ${new Date(log.created_at).toLocaleDateString()}
+                ${typeof formatVenezuelaDateTime === 'function' ? formatVenezuelaDateTime(log.created_at).date : new Date(log.created_at).toLocaleDateString()}
               </span>
             </td>
           </tr>
@@ -449,7 +449,7 @@ const SuperrootModule = {
           <img src="${doc.foto_carnet_url}" alt="Foto" style="width: 54px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid var(--unermb-blue-dark);" onerror="this.src='/multimedia/uner.png'">
           <div style="flex: 1; min-width: 0;">
             <h3 style="font-size: 1.15rem; color: var(--unermb-blue-dark); margin-bottom: 0.15rem;">${doc.nombre} ${doc.apellido}</h3>
-            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">C.I.: V-${doc.cedula} &bull; ${doc.email}</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">C.I.: ${typeof formatCedula === 'function' ? formatCedula(doc.cedula) : doc.cedula} &bull; ${doc.email}</div>
             <div style="font-size: 0.75rem; color: var(--text-muted);">
               <strong>Materias Asignadas:</strong> ${materiasGen.length} / 5 &bull; <strong>Bloques Horario:</strong> ${horarios.length}
             </div>
@@ -865,12 +865,12 @@ const SuperrootModule = {
             </td>
             <td>
               <strong>${log.nombre} ${log.apellido}</strong><br>
-              <span style="font-size: 0.75rem; color: var(--text-muted);">C.I.: V-${log.cedula}</span>
+              <span style="font-size: 0.75rem; color: var(--text-muted);">C.I.: ${typeof formatCedula === 'function' ? formatCedula(log.cedula) : log.cedula}</span>
             </td>
             <td>
-              <strong>${new Date(log.fecha_hora).toLocaleDateString()}</strong><br>
+              <strong>${typeof formatVenezuelaDateTime === 'function' ? formatVenezuelaDateTime(log.fecha_hora).date : new Date(log.fecha_hora).toLocaleDateString()}</strong><br>
               <span style="font-size: 0.85rem; color: var(--unermb-blue-dark); font-weight: 700;">
-                ${new Date(log.fecha_hora).toLocaleTimeString()}
+                ${typeof formatVenezuelaDateTime === 'function' ? formatVenezuelaDateTime(log.fecha_hora).time : new Date(log.fecha_hora).toLocaleTimeString()}
               </span>
             </td>
             <td><span class="badge ${badgeClass}">${log.tipo}</span></td>

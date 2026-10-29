@@ -154,12 +154,18 @@ const login = async (req, res) => {
   const { cleanIdentificador, cleanPassword } = req;
 
   try {
-    // Buscar usuario por correo electrónico o por cédula
+    // Buscar usuario por correo electrónico o por cédula (compatible con formatos V-XXXXXXXX, E-XXXXXXXX y numérico puro)
+    const digits = cleanIdentificador.replace(/\D/g, '');
+    const vPrefixed = digits ? `V-${digits}` : cleanIdentificador;
+    const ePrefixed = digits ? `E-${digits}` : cleanIdentificador;
+    const vConcat = digits ? `V${digits}` : cleanIdentificador;
+    const eConcat = digits ? `E${digits}` : cleanIdentificador;
+
     const users = await db.query(
       `SELECT id, nombre, apellido, cedula, email, password_hash, foto_carnet_url, rol, estado
        FROM usuarios
-       WHERE email = ? OR cedula = ?`,
-      [cleanIdentificador, cleanIdentificador]
+       WHERE email = ? OR cedula = ? OR cedula = ? OR cedula = ? OR cedula = ? OR cedula = ? OR cedula = ?`,
+      [cleanIdentificador, cleanIdentificador, digits, vPrefixed, ePrefixed, vConcat, eConcat]
     );
 
     if (users.length === 0) {
@@ -300,15 +306,25 @@ const getMe = async (req, res) => {
  * Restablecer contraseña mediante Cédula y Correo
  */
 const resetPassword = async (req, res) => {
-  const { cedula, email, new_password, confirm_password } = req.body;
+  const { cedula, tipo_cedula, email, new_password, confirm_password } = req.body;
 
-  const cleanCedula = String(cedula || '').trim();
+  let rawCedula = String(cedula || '').trim().toUpperCase();
   const cleanEmail = String(email || '').trim().toLowerCase();
+  const cleanDigits = rawCedula.replace(/\D/g, '');
+  const tipo = (tipo_cedula || (rawCedula.startsWith('E') ? 'E' : 'V')).toUpperCase();
+  const formattedCedula = `${tipo}-${cleanDigits}`;
 
-  if (!cleanCedula || !cleanEmail || !new_password) {
+  if (!cleanDigits || !cleanEmail || !new_password) {
     return res.status(400).json({
       success: false,
       error: 'Debe ingresar su Cédula, Correo Electrónico y la Nueva Contraseña.'
+    });
+  }
+
+  if (cleanDigits.length > 8) {
+    return res.status(400).json({
+      success: false,
+      error: 'La Cédula de Identidad no puede exceder los 8 caracteres numéricos.'
     });
   }
 
@@ -328,8 +344,10 @@ const resetPassword = async (req, res) => {
 
   try {
     const users = await db.query(
-      'SELECT id, nombre, apellido, email, cedula FROM usuarios WHERE cedula = ? AND email = ?',
-      [cleanCedula, cleanEmail]
+      `SELECT id, nombre, apellido, email, cedula 
+       FROM usuarios 
+       WHERE email = ? AND (cedula = ? OR cedula = ? OR cedula = ? OR cedula = ? OR cedula = ?)`,
+      [cleanEmail, rawCedula, formattedCedula, cleanDigits, `V-${cleanDigits}`, `E-${cleanDigits}`]
     );
 
     if (users.length === 0) {

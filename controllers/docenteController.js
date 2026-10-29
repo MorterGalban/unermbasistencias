@@ -5,11 +5,14 @@ const { BLOQUES_HORARIOS, DIAS_SEMANA } = require('../database/pensumData');
 const HMAC_SECRET = process.env.QR_HMAC_SECRET || 'UNERMB_PNF_HMAC_SECRET_KEY_ASISTENCIA_2026';
 
 /**
- * Obtener el día de la semana actual en español (Lunes a Viernes)
+ * Obtener el día de la semana actual en español con zona horaria de Venezuela (Lunes a Viernes)
  */
 function getDiaSemanaActual(date = new Date()) {
-  const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-  return dias[date.getDay()];
+  const weekdayStr = new Intl.DateTimeFormat('es-VE', {
+    timeZone: 'America/Caracas',
+    weekday: 'long'
+  }).format(date);
+  return weekdayStr.charAt(0).toUpperCase() + weekdayStr.slice(1);
 }
 
 /**
@@ -37,7 +40,14 @@ function evaluarPuntualidad(horariosHoy, dateNow = new Date()) {
     };
   }
 
-  const horaActualStr = dateNow.toTimeString().split(' ')[0]; // HH:MM:SS
+  // Hora exacta en la zona horaria legal de Venezuela (HLV / UTC-4)
+  const horaActualStr = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/Caracas',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).format(dateNow);
   const minutosActuales = timeToMinutes(horaActualStr);
 
   // Buscar si cae dentro o cerca de algún bloque del día
@@ -289,10 +299,21 @@ const getHistorialPersonal = async (req, res) => {
     const totalATiempo = marcajes.filter(m => m.puntualidad_estado === 'A_TIEMPO').length;
     const totalTarde = marcajes.filter(m => m.puntualidad_estado === 'TARDE').length;
 
-    // Marcaje de hoy
-    const hoyStr = new Date().toISOString().split('T')[0];
+    // Marcajes de hoy sincronizados estrictamente con la fecha legal de Venezuela (UTC-4)
+    const hoyStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Caracas',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date());
+
     const marcajesHoy = marcajes.filter(m => {
-      const d = new Date(m.fecha_hora).toISOString().split('T')[0];
+      const d = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Caracas',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).format(new Date(m.fecha_hora));
       return d === hoyStr;
     });
 

@@ -2,7 +2,7 @@ const db = require('../database/db');
 
 // Expresiones regulares de seguridad
 const REGEX_ALFABETICO = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/;
-const REGEX_CEDULA = /^\d{1,9}$/;
+const REGEX_CEDULA = /^[VEve]?[-]?\d{1,8}$/;
 const REGEX_EMAIL = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 // Contraseña: al menos 8 caracteres
 const REGEX_PASSWORD = /^.{8,}$/;
@@ -53,21 +53,43 @@ const validateRegistroDocente = async (req, res, next) => {
     });
   }
 
-  // 3. Validación de Cédula de Identidad
-  const cleanCedula = String(cedula || '').trim();
-  if (!cleanCedula || !REGEX_CEDULA.test(cleanCedula)) {
+  // 3. Validación de Tipo y Cédula de Identidad (Límite estricto de 8 caracteres numéricos)
+  let tipoCedula = String(req.body.tipo_cedula || '').trim().toUpperCase();
+  let rawCedula = String(cedula || '').trim().toUpperCase();
+
+  // Detectar prefijo V o E si viene incluido
+  if (rawCedula.startsWith('V-') || rawCedula.startsWith('V')) {
+    tipoCedula = 'V';
+    rawCedula = rawCedula.replace(/^V[-]?/, '');
+  } else if (rawCedula.startsWith('E-') || rawCedula.startsWith('E')) {
+    tipoCedula = 'E';
+    rawCedula = rawCedula.replace(/^E[-]?/, '');
+  }
+
+  if (tipoCedula !== 'E') {
+    tipoCedula = 'V'; // Por defecto V (Venezolano)
+  }
+
+  // Extraer dígitos estrictamente
+  const cleanDigits = rawCedula.replace(/\D/g, '');
+
+  if (!cleanDigits || cleanDigits.length === 0 || cleanDigits.length > 8) {
     return res.status(400).json({
       success: false,
-      error: 'La Cédula de Identidad debe ser estrictamente numérica y tener un máximo de 9 dígitos.'
+      error: 'La Cédula de Identidad debe tener un límite de máximo 8 caracteres numéricos.'
     });
   }
-  const numCedula = parseInt(cleanCedula, 10);
-  if (numCedula <= 0 || numCedula > 999999999) {
+
+  const numCedula = parseInt(cleanDigits, 10);
+  if (numCedula <= 0) {
     return res.status(400).json({
       success: false,
-      error: 'La Cédula debe estar en el rango válido (máximo 999.999.999).'
+      error: 'El número de Cédula de Identidad ingresado no es válido.'
     });
   }
+
+  // Formato oficial guardado (ej. V-12345678 o E-12345678)
+  const formattedCedula = `${tipoCedula}-${cleanDigits}`;
 
   // 4. Validación de Correo Electrónico
   const cleanEmail = String(email || '').trim().toLowerCase();
@@ -117,8 +139,11 @@ const validateRegistroDocente = async (req, res, next) => {
   }
 
   try {
-    // 9. Comprobación de Unicidad en Base de Datos MySQL
-    const existeCedula = await db.query('SELECT id FROM usuarios WHERE cedula = ?', [cleanCedula]);
+    // 9. Comprobación de Unicidad en Base de Datos MySQL (comprobando con y sin prefijo V-/E-)
+    const existeCedula = await db.query(
+      'SELECT id FROM usuarios WHERE cedula = ? OR cedula = ? OR cedula = ?',
+      [formattedCedula, cleanDigits, `${tipoCedula}${cleanDigits}`]
+    );
     if (existeCedula.length > 0) {
       return res.status(409).json({
         success: false,
@@ -138,7 +163,7 @@ const validateRegistroDocente = async (req, res, next) => {
     req.sanitizedData = {
       nombre: nombre.trim(),
       apellido: apellido.trim(),
-      cedula: cleanCedula,
+      cedula: formattedCedula,
       email: cleanEmail,
       password: password,
       materiasIds: materiasUnicas,

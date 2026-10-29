@@ -165,8 +165,90 @@ function logout() {
   navigateTo('view-login');
 }
 
+// Reloj Oficial en Tiempo Real de Venezuela (HLV / UTC-4) visible en toda la aplicación
+function startLiveVenezuelaClock() {
+  const timeEl = document.getElementById('live-clock-time');
+  const dateEl = document.getElementById('live-clock-date');
+  if (!timeEl || !dateEl) return;
+
+  function updateClock() {
+    const now = new Date();
+    try {
+      const timeStr = now.toLocaleTimeString('es-VE', {
+        timeZone: 'America/Caracas',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      });
+      const dateStr = now.toLocaleDateString('es-VE', {
+        timeZone: 'America/Caracas',
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+      timeEl.textContent = timeStr;
+      dateEl.textContent = dateStr;
+    } catch (e) {
+      timeEl.textContent = now.toTimeString().split(' ')[0];
+      dateEl.textContent = now.toDateString();
+    }
+  }
+
+  updateClock();
+  setInterval(updateClock, 1000);
+}
+window.startLiveVenezuelaClock = startLiveVenezuelaClock;
+
+// Formateador universal de Cédula de Identidad venezolana (V / E)
+function formatCedula(ci) {
+  if (!ci) return '';
+  const str = String(ci).trim().toUpperCase();
+  if (str.startsWith('V-') || str.startsWith('E-')) return str;
+  if (str.startsWith('V') || str.startsWith('E')) return `${str[0]}-${str.slice(1)}`;
+  return `V-${str}`;
+}
+window.formatCedula = formatCedula;
+
+// Formateador de Fecha y Hora en zona horaria oficial de Venezuela (UTC-4)
+function formatVenezuelaDateTime(dateInput) {
+  if (!dateInput) return { time: '', date: '', full: '' };
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return { time: '', date: '', full: '' };
+  try {
+    const time = d.toLocaleTimeString('es-VE', {
+      timeZone: 'America/Caracas',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+    const date = d.toLocaleDateString('es-VE', {
+      timeZone: 'America/Caracas',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+    return { time, date, full: `${date} ${time}` };
+  } catch (e) {
+    return { time: d.toLocaleTimeString(), date: d.toLocaleDateString(), full: d.toLocaleString() };
+  }
+}
+window.formatVenezuelaDateTime = formatVenezuelaDateTime;
+
 // Inicialización de la aplicación
 document.addEventListener('DOMContentLoaded', async () => {
+  // Iniciar reloj en vivo en hora legal de Venezuela en el encabezado
+  startLiveVenezuelaClock();
+
+  // Restricción a 8 dígitos en input de cédula para recuperación de contraseña
+  const resetCedulaInput = document.getElementById('reset-cedula');
+  if (resetCedulaInput) {
+    resetCedulaInput.addEventListener('input', (e) => {
+      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 8);
+    });
+  }
   // Comprobar si se abrió como archivo local file://
   if (window.location.protocol === 'file:') {
     const warningEl = document.getElementById('file-protocol-warning');
@@ -411,14 +493,22 @@ window.closeResetPasswordModal = function() {
 // Envío de Formulario de Restablecimiento de Contraseña
 async function handleResetPasswordSubmit(e) {
   e.preventDefault();
-  const cedula = document.getElementById('reset-cedula').value.trim();
+  const tipoCedulaEl = document.getElementById('reset-tipo-cedula');
+  const tipo_cedula = tipoCedulaEl ? tipoCedulaEl.value : 'V';
+  const rawCedula = document.getElementById('reset-cedula').value.trim();
+  const cedula = rawCedula.replace(/\D/g, '').slice(0, 8);
   const email = document.getElementById('reset-email').value.trim();
   const new_password = document.getElementById('reset-new-password').value;
   const confirm_password = document.getElementById('reset-confirm-password').value;
   const submitBtn = document.getElementById('btn-reset-password-submit');
 
   if (!cedula || !email || !new_password) {
-    showToast('Debe completar la cédula, correo y su nueva clave.', 'error');
+    showToast('Debe completar la cédula (hasta 8 dígitos), correo y su nueva clave.', 'error');
+    return;
+  }
+
+  if (cedula.length > 8) {
+    showToast('La cédula debe tener un límite máximo de 8 dígitos numéricos.', 'error');
     return;
   }
 
@@ -439,7 +529,7 @@ async function handleResetPasswordSubmit(e) {
     const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cedula, email, new_password, confirm_password })
+      body: JSON.stringify({ cedula, tipo_cedula, email, new_password, confirm_password })
     });
     
     let data;
