@@ -1,0 +1,101 @@
+Trayecto inicial (PIU)
+PIU-1
+- Pensamiento de colonial y cultura para el buen vivir
+- Revolución Bolivariana
+- Introducción al Liderazgo Productivo
+- Educación física, actividad física y deporte
+- Pensamiento Estratégico Matemático
+- Lenguaje y Comunicación Liberadora
+- Identidad institucional
+- Soberanía, seguridad y defensa
+- Agenda Económica Bolivariana
+- Ideario Bolivariano
+
+Trayecto 1
+Trimestre 1-1
+- Idiomas
+- Proyecto Sociotecnológico I
+- Arquitectura del computador
+- Algorítmica y Programación I
+- Formación Crítica I
+- Matemática I
+Trimestre 1-2
+- Idiomas
+- Proyecto Sociotecnológico I
+- Algorítmica y Programación I
+- Arquitectura del computador
+- Matemática I
+- Formación Crítica I
+- Electiva I
+Trimestre 1-3
+- Actividad Acreditable
+- Proyecto Sociotecnológico I
+- Idiomas
+- Algorítmica y Programación I
+- Arquitectura del Computador
+- Formación Crítica I
+- Matemática I
+
+Trayecto 2
+Trimestre 2-1
+- Ingeniería del Software I
+- Proyecto Sociotecnológico II
+- Programación II
+- Redes del Computador
+- Formación Crítica II
+- Matemática II
+Trimestre 2-2
+- Base de Datos
+- Proyecto Sociotecnológico II
+- Programación II
+- Redes del Computador
+- Formación Crítica II
+- Matemática II
+Trimestre 2-3
+- Actividad Acreditable
+- Electiva II
+- Proyecto Sociotecnológico II
+- Programación II
+- Formación Crítica II
+
+Trayecto 3
+Trimestre 3-1
+- Ingeniería del Software II
+- Proyecto Sociotecnológico III
+- Sistemas Operativos
+- Formación Crítica III
+- Matemática Aplicada
+Trimestre 3-2
+- Modelado de Base de Datos
+- Proyecto Sociotecnológico III
+- Ingeniería del Software II
+- Formación Crítica III
+- Matemática Aplicada
+Trimestre 3-3
+- Investigación de Operaciones
+- Actividad Acreditable
+- Electiva III
+- Ingeniería del Software II
+- Proyecto Sociotecnológico III
+- Formación Crítica III
+
+Trayecto 4
+Trimestre 4-1
+- Idiomas
+- Administración de Base de Datos
+- Gestión de Proyectos Informáticos
+- Proyecto Sociotecnológico IV
+- Formación Crítica IV
+Trimestre 4-2
+- Idiomas
+- Redes Avanzadas
+- Seguridad Informática
+- Proyecto Sociotecnológico IV
+- Formación Crítica IV
+Trimestre 4-3
+- Proyecto Sociotecnológico IV
+- Formación Crítica IV
+- Auditoría Informática
+- Electiva IV
+- Idiomas
+- Actividad Acreditable

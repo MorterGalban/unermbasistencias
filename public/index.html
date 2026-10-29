@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>UNERMB - PNF en Informática | Control de Asistencia QR</title>
+  <meta name="description" content="Sistema Institucional de Control de Asistencia Docente mediante Escaneo de Código QR - Universidad Nacional Experimental Rafael María Baralt (UNERMB), Programa Nacional de Formación en Informática.">
+  <meta name="theme-color" content="#002147">
+  
+  <!-- Preconexión a Tipografías Oficiales -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Estilos Institucionales UNERMB (Ruta Relativa Compatible con Servidor y Archivo Local) -->
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="icon" type="image/png" href="multimedia/uner.png">
+</head>
+<body>
+
+  <!-- Banner de Detección de Entorno Local si se abre como file:// -->
+  <div id="file-protocol-warning" style="display: none; background: #002147; color: #ffffff; padding: 0.5rem 1rem; text-align: center; font-size: 0.8rem; border-bottom: 2px solid #38bdf8;">
+    <span><strong>Aviso de Entorno Local:</strong> Para usar la cámara, base de datos y todas las funciones interactivas, ejecute 'npm start' y acceda a: </span>
+    <a href="http://localhost:3000" style="color: #38bdf8; font-weight: 700; text-decoration: underline; margin-left: 0.3rem;">http://localhost:3000</a>
+  </div>
+
+  <!-- ========================================================================
+       ENCABEZADO / BRANDING INSTITUCIONAL OFICIAL (OBLIGATORIO)
+       ======================================================================== -->
+  <header class="institutional-header">
+    <div class="header-container">
+      <div class="brand-wrapper">
+        <div class="brand-logos">
+          <img src="multimedia/uner.png" alt="Logo UNERMB" class="logo-img" title="Universidad Nacional Experimental Rafael María Baralt">
+          <div class="brand-divider"></div>
+          <img src="multimedia/pnf.png" alt="Logo PNF Informática" class="logo-img" title="PNF en Informática">
+        </div>
+        <div class="brand-info">
+          <span class="institution-name">UNERMB</span>
+          <span class="program-name">PNF EN INFORMÁTICA</span>
+        </div>
+      </div>
+
+      <nav class="header-nav" id="user-header-actions">
+        <!-- Renderizado dinámico vía app.js según el estado de sesión -->
+      </nav>
+    </div>
+  </header>
+
+  <!-- Contenedor de Alertas Toast -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- ========================================================================
+       CONTENIDO PRINCIPAL Y VISTAS
+       ======================================================================== -->
+  <main class="main-content">
+
+    <!-- ----------------------------------------------------------------------
+         VISTA 1: INICIO DE SESIÓN
+         ---------------------------------------------------------------------- -->
+    <section id="view-login" class="view-section active">
+      <div style="max-width: 440px; margin: 1.5rem auto 0 auto;">
+        
+        <div class="card" style="border-top: 4px solid var(--unermb-blue-primary);">
+          <div style="text-align: center; margin-bottom: 1.5rem;">
+            <div style="display: flex; justify-content: center; gap: 0.75rem; margin-bottom: 0.8rem;">
+              <img src="multimedia/uner.png" alt="UNERMB" style="height: 48px;">
+              <img src="multimedia/pnf.png" alt="PNF" style="height: 48px;">
+            </div>
+            <h1 style="font-size: 1.4rem; color: var(--unermb-blue-dark); margin-bottom: 0.25rem;">
+              Control de Asistencia Docente
+            </h1>
+            <p style="font-size: 0.82rem; color: var(--text-secondary);">
+              Acceso seguro para Docentes y Coordinación del PNF
+            </p>
+          </div>
+
+          <form id="login-form">
+            <div class="form-group">
+              <label for="login-identificador" class="form-label">
+                Correo Electrónico o Cédula <span class="required">*</span>
+              </label>
+              <input type="text" id="login-identificador" class="form-input" placeholder="ej. docente@unermb.edu.ve o 12345678" required autocomplete="username">
+            </div>
+
+            <div class="form-group">
+              <label for="login-password" class="form-label">
+                Contraseña <span class="required">*</span>
+              </label>
+              <div class="password-input-wrapper">
+                <input type="password" id="login-password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
+                <button type="button" class="btn-toggle-password" onclick="togglePasswordVisibility('login-password', this)" title="Mostrar / Ocultar contraseña" aria-label="Mostrar contraseña">
+                  <svg class="icon-svg icon-svg-stroke" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                </button>
+              </div>
+            </div>
+
+            <div style="text-align: right; margin-top: -0.4rem; margin-bottom: 1.1rem;">
+              <a href="javascript:void(0)" onclick="openResetPasswordModal()" style="font-size: 0.8rem; color: var(--unermb-blue-accent); font-weight: 600; text-decoration: underline;">
+                ¿Olvidaste o deseas cambiar tu contraseña?
+              </a>
+            </div>
+
+            <button type="submit" id="btn-login-submit" class="btn btn-primary btn-block btn-lg">
+              <span>Ingresar al Sistema</span>
+            </button>
+          </form>
+
+          <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; text-align: center;">
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.6rem;">
+              ¿Nuevo docente del PNF en Informática?
+            </p>
+            <button class="btn btn-outline-primary btn-block" onclick="navigateTo('view-register')">
+              Registrar Nueva Cuenta Docente
+            </button>
+          </div>
+        </div>
+
+        <!-- Acceso Rápido para Pruebas / Demostración -->
+        <div class="card" style="background: #f8fafc; border: 1px dashed #cbd5e1; padding: 1rem;">
+          <div style="font-size: 0.78rem; font-weight: 700; color: var(--unermb-blue-dark); margin-bottom: 0.5rem; text-transform: uppercase;">
+            Credencial de Demostración (Superroot Admin):
+          </div>
+          <div style="font-size: 0.82rem; color: var(--text-secondary); font-family: monospace; background: #ffffff; padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid #e2e8f0; margin-bottom: 0.6rem;">
+            Usuario: <strong>admin@unermb.edu.ve</strong> | Clave: <strong>Admin123!</strong>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <button class="btn btn-secondary btn-sm btn-block" onclick="document.getElementById('login-identificador').value='admin@unermb.edu.ve'; document.getElementById('login-password').value='Admin123!'; showToast('Credenciales de Superroot cargadas.', 'info');">
+              Cargar Credenciales Superroot
+            </button>
+            <button class="btn btn-outline-primary btn-sm btn-block" onclick="openResetPasswordModal()">
+              Restablecer / Cambiar Contraseña Docente
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ----------------------------------------------------------------------
+         VISTA 2: REGISTRO DE DOCENTES (AMPLIADO Y VALIDADO)
+         ---------------------------------------------------------------------- -->
+    <section id="view-register" class="view-section">
+      <div style="max-width: 680px; margin: 1rem auto;">
+        
+        <div class="card" style="border-top: 4px solid var(--unermb-blue-accent);">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">
+                <span>Registro de Personal Docente</span>
+              </h2>
+              <p style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.2rem;">
+                UNERMB - Programa Nacional de Formación en Informática
+              </p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="navigateTo('view-login')">
+              Volver al Login
+            </button>
+          </div>
+
+          <!-- Alerta de Ciberseguridad y Estado Pendiente -->
+          <div style="background: var(--status-pending-bg); border-left: 4px solid var(--status-pending); padding: 0.85rem 1rem; border-radius: var(--radius-sm); margin-bottom: 1.5rem; font-size: 0.82rem; color: #92400e;">
+            <strong>Aviso de Seguridad Académica:</strong> Toda cuenta registrada quedará en estado <strong>PENDIENTE</strong>. La Coordinación del PNF en Informática revisará su fotografía tipo carnet y asignará sus unidades curriculares y horarios oficiales antes de la activación.
+          </div>
+
+          <form id="docente-registration-form" novalidate>
+            <!-- Nombres y Apellidos -->
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label for="reg-nombre" class="form-label">
+                  Nombre(s) <span class="required">*</span>
+                </label>
+                <input type="text" id="reg-nombre" class="form-input" placeholder="Solo letras y espacios" required>
+                <div class="validation-error" id="error-reg-nombre"></div>
+              </div>
+
+              <div class="form-group">
+                <label for="reg-apellido" class="form-label">
+                  Apellido(s) <span class="required">*</span>
+                </label>
+                <input type="text" id="reg-apellido" class="form-input" placeholder="Solo letras y espacios" required>
+                <div class="validation-error" id="error-reg-apellido"></div>
+              </div>
+            </div>
+
+            <!-- Cédula y Correo -->
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label for="reg-cedula" class="form-label">
+                  Cédula de Identidad <span class="required">*</span>
+                </label>
+                <input type="text" id="reg-cedula" class="form-input" placeholder="Máx 9 dígitos numéricos" maxlength="9" required>
+                <div class="input-hint">Solo números (ej. 18500200)</div>
+                <div class="validation-error" id="error-reg-cedula"></div>
+              </div>
+
+              <div class="form-group">
+                <label for="reg-email" class="form-label">
+                  Correo Electrónico <span class="required">*</span>
+                </label>
+                <input type="email" id="reg-email" class="form-input" placeholder="docente@unermb.edu.ve" required>
+                <div class="validation-error" id="error-reg-email"></div>
+              </div>
+            </div>
+
+            <!-- Contraseña y Confirmación -->
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label for="reg-password" class="form-label">
+                  Contraseña <span class="required">*</span>
+                </label>
+                <div class="password-input-wrapper">
+                  <input type="password" id="reg-password" class="form-input" placeholder="Mínimo 8 caracteres" required autocomplete="new-password">
+                  <button type="button" class="btn-toggle-password" onclick="togglePasswordVisibility('reg-password', this)" title="Mostrar / Ocultar contraseña" aria-label="Mostrar contraseña">
+                    <svg class="icon-svg icon-svg-stroke" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  </button>
+                </div>
+                <div class="validation-error" id="error-reg-password"></div>
+              </div>
+
+              <div class="form-group">
+                <label for="reg-confirm-password" class="form-label">
+                  Confirmar Contraseña <span class="required">*</span>
+                </label>
+                <div class="password-input-wrapper">
+                  <input type="password" id="reg-confirm-password" class="form-input" placeholder="Repita la contraseña" required autocomplete="new-password">
+                  <button type="button" class="btn-toggle-password" onclick="togglePasswordVisibility('reg-confirm-password', this)" title="Mostrar / Ocultar contraseña" aria-label="Mostrar contraseña">
+                    <svg class="icon-svg icon-svg-stroke" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  </button>
+                </div>
+                <div class="validation-error" id="error-reg-confirm-password"></div>
+              </div>
+            </div>
+
+            <!-- Panel Profesional de Seguridad de Contraseña -->
+            <div class="password-security-card" id="reg-password-security-card">
+              <div class="password-strength-header">
+                <span class="password-strength-title">Nivel de Seguridad de Contraseña:</span>
+                <span class="password-strength-label" id="reg-strength-label">Sin ingresar</span>
+              </div>
+              <div class="password-strength-bar-track">
+                <div class="password-strength-bar-fill" id="reg-strength-bar"></div>
+              </div>
+              <ul class="password-checklist">
+                <li class="password-checklist-item" id="reg-crit-length">
+                  <span class="checklist-icon">●</span>
+                  <span>Mínimo 8 caracteres</span>
+                </li>
+                <li class="password-checklist-item" id="reg-crit-casing">
+                  <span class="checklist-icon">●</span>
+                  <span>Mayúscula y minúscula (A-z)</span>
+                </li>
+                <li class="password-checklist-item" id="reg-crit-number">
+                  <span class="checklist-icon">●</span>
+                  <span>Al menos un número (0-9)</span>
+                </li>
+                <li class="password-checklist-item" id="reg-crit-symbol">
+                  <span class="checklist-icon">●</span>
+                  <span>Carácter especial (!@#$...)</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Fotografía Tipo Carnet (OBLIGATORIO) -->
+            <div class="form-group">
+              <label class="form-label">
+                Fotografía Tipo Carnet del Docente (Obligatorio) <span class="required">*</span>
+              </label>
+
+              <div class="carnet-upload-box" id="carnet-upload-dropzone">
+                <input type="file" id="reg-foto-carnet" accept="image/jpeg,image/png,image/webp" style="display: none;">
+                
+                <div class="carnet-preview-wrapper">
+                  <div class="carnet-preview-frame">
+                    <img id="carnet-preview-img" class="carnet-preview-img" style="display: none;" alt="Preview Foto Carnet">
+                    <div id="carnet-preview-placeholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); font-size: 0.75rem; padding: 0.5rem;">
+                      <svg class="icon-svg icon-svg-stroke" style="width: 2.2rem; height: 2.2rem; margin-bottom: 0.3rem;" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                      <span>Foto Carnet</span>
+                    </div>
+                    <div class="carnet-badge">UNERMB DOCENTE</div>
+                  </div>
+
+                  <div>
+                    <span style="font-weight: 700; color: var(--unermb-blue-primary); font-size: 0.9rem;">
+                      Haga clic o arrastre su fotografía aquí
+                    </span>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;">
+                      Formatos permitidos: JPG, PNG o WEBP (Fondo claro o neutro, máx. 5 MB).
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Aviso Institucional: Asignación de Materias reservada para Superroot -->
+            <div class="info-callout" style="background: #f0f7ff; border: 1px solid #bfdbfe; border-left: 4px solid var(--unermb-blue-accent); border-radius: var(--radius-sm); padding: 0.85rem 1rem; margin-bottom: 1.25rem;">
+              <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+                <svg class="icon-svg icon-svg-stroke" style="color: var(--unermb-blue-accent); width: 1.4rem; height: 1.4rem; flex-shrink: 0; margin-top: 2px;" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                <div style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.4;">
+                  <strong style="color: var(--unermb-blue-dark); display: block; margin-bottom: 0.2rem;">Asignación Académica de Materias y Horarios:</strong>
+                  La asignación de unidades curriculares y horarios semanales está reservada exclusivamente para la Coordinación del PNF en Informática (Superroot). Tras la aprobación de su cuenta, el Superroot le asignará sus materias oficiales del Pensum 2026.
+                </div>
+              </div>
+            </div>
+
+            <button type="submit" id="btn-submit-registration" class="btn btn-primary btn-block btn-lg" style="margin-top: 0.5rem;">
+              <span>Completar Registro Docente</span>
+            </button>
+          </form>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ----------------------------------------------------------------------
+         VISTA 3: PANTALLA DE ÉXITO DE REGISTRO (ESTADO PENDIENTE)
+         ---------------------------------------------------------------------- -->
+    <section id="view-registration-success" class="view-section">
+      <div style="max-width: 520px; margin: 2rem auto;">
+        <div class="card" style="text-align: center; border-top: 4px solid var(--status-pending);">
+          <div style="display: flex; justify-content: center; margin-bottom: 0.75rem;">
+            <svg class="icon-svg icon-svg-stroke" style="width: 3.2rem; height: 3.2rem; color: var(--status-pending);" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          </div>
+          <span class="badge badge-pendiente" style="font-size: 0.85rem; padding: 0.4rem 1rem; margin-bottom: 1rem;">
+            ESTADO: PENDIENTE DE APROBACIÓN
+          </span>
+
+          <h2 style="font-size: 1.35rem; color: var(--unermb-blue-dark); margin-bottom: 0.5rem;">
+            ¡Registro Enviado Exitosamente!
+          </h2>
+
+          <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 1.25rem;">
+            Sus datos personales y fotografía tipo carnet han sido archivados en el sistema central de la <strong>UNERMB PNF en Informática</strong>.
+          </p>
+
+          <div style="background: #f8fafc; border-radius: var(--radius-md); padding: 1rem; text-align: left; border: 1px solid #e2e8f0; font-size: 0.82rem; margin-bottom: 1.5rem;">
+            <div style="margin-bottom: 0.3rem;"><strong>Docente:</strong> <span id="reg-success-fullname"></span></div>
+            <div style="margin-bottom: 0.3rem;"><strong>Cédula:</strong> V-<span id="reg-success-cedula"></span></div>
+            <div style="margin-bottom: 0.3rem;"><strong>Correo:</strong> <span id="reg-success-email"></span></div>
+            <div><strong>Materias:</strong> <span id="reg-success-materias-count" style="color: var(--status-pending); font-weight: 600;">Pendientes por asignar por el Superroot</span></div>
+          </div>
+
+          <div style="background: #fffbeb; border: 1px solid #fef3c7; color: #b45309; padding: 0.85rem; border-radius: var(--radius-md); font-size: 0.8rem; margin-bottom: 1.5rem;">
+            <strong>Aviso Importante:</strong> No podrá iniciar sesión hasta que el <strong>Superroot (Coordinación PNF Informática)</strong> apruebe sus recaudos. Una vez aprobado, podrá ingresar y marcar asistencia con su cámara QR.
+          </div>
+
+          <button class="btn btn-primary btn-block" onclick="navigateTo('view-login')">
+            Volver a la Pantalla de Inicio
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ----------------------------------------------------------------------
+         VISTA 4: PANEL SUPERROOT (ADMINISTRADOR PNF INFORMÁTICA)
+         ---------------------------------------------------------------------- -->
+    <section id="view-superroot" class="view-section">
+      <div style="margin-bottom: 1.25rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <h1 style="font-size: 1.45rem; color: var(--unermb-blue-dark);">
+              Panel de Control Superroot
+            </h1>
+            <p style="font-size: 0.82rem; color: var(--text-secondary);">
+              Coordinación del PNF en Informática - UNERMB
+            </p>
+          </div>
+          <span class="badge" style="background: var(--unermb-black); color: #fff;">
+            Nivel: SUPERROOT / AUDITOR GENERAL
+          </span>
+        </div>
+      </div>
+
+      <!-- Tarjetas de Métricas Globales -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">
+            <svg class="icon-svg icon-svg-stroke" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value" id="stat-total-docentes">0</span>
+            <span class="stat-label">Total Docentes</span>
+          </div>
+        </div>
+
+        <div class="stat-card" style="border-left-color: var(--status-pending);">
+          <div class="stat-icon" style="background: var(--status-pending-bg); color: var(--status-pending);">
+            <svg class="icon-svg icon-svg-stroke" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value" id="stat-pendientes">0</span>
+            <span class="stat-label">Solicitudes Pendientes</span>
+          </div>
+        </div>
+
+        <div class="stat-card" style="border-left-color: var(--status-active);">
+          <div class="stat-icon" style="background: var(--status-active-bg); color: var(--status-active);">
+            <svg class="icon-svg icon-svg-stroke" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value" id="stat-activos">0</span>
+            <span class="stat-label">Docentes Activos</span>
+          </div>
+        </div>
+
+        <div class="stat-card" style="border-left-color: var(--unermb-blue-accent);">
+          <div class="stat-icon">
+            <svg class="icon-svg icon-svg-stroke" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value" id="stat-marcajes-hoy">0E / 0S</span>
+            <span class="stat-label">Marcajes Hoy (Ent/Sal)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pestañas del Panel Superroot -->
+      <div class="tabs-nav">
+        <button class="tab-btn active" data-tab="tab-solicitudes">
+          <span>Solicitudes Pendientes</span>
+          <span class="badge badge-pendiente" id="badge-count-solicitudes" style="margin-left: 0.3rem; display: none;">0</span>
+        </button>
+        <button class="tab-btn" data-tab="tab-docentes">
+          <span>Gestión de Usuarios</span>
+        </button>
+        <button class="tab-btn" data-tab="tab-system-logs">
+          <span>Control de Logs</span>
+        </button>
+        <button class="tab-btn" data-tab="tab-qr-generador">
+          <span>Generador de Código QR</span>
+        </button>
+        <button class="tab-btn" data-tab="tab-asistencias-logs">
+          <span>Reporte de Asistencias</span>
+        </button>
+      </div>
+
+      <!-- Contenido Tab 1: Solicitudes Pendientes -->
+      <div id="tab-solicitudes" class="superroot-tab-content">
+        <div id="solicitudes-pendientes-container"></div>
+      </div>
+
+      <!-- Contenido Tab 2: Gestión de Usuarios / Docentes (Requerimiento 2.A.1) -->
+      <div id="tab-docentes" class="superroot-tab-content" style="display: none;">
+        <div class="card">
+          <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.25rem;">
+            <input type="text" id="search-docente-input" class="form-input" style="flex: 1; min-width: 200px;" placeholder="Buscar por nombre, apellido, cédula...">
+            <select id="filter-docente-estado" class="form-select" style="width: auto; min-width: 160px;">
+              <option value="">Todos los Estados</option>
+              <option value="ACTIVO">Activos</option>
+              <option value="INACTIVO">Inactivos</option>
+              <option value="PENDIENTE">Pendientes</option>
+              <option value="RECHAZADO">Rechazados</option>
+            </select>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Foto</th>
+                  <th>Docente / Usuario</th>
+                  <th>Cédula</th>
+                  <th>Materias Declaradas</th>
+                  <th>Horario Semanal</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="docentes-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Contenido Tab 3: Control de Logs del Sistema (Requerimiento 2.A.2) -->
+      <div id="tab-system-logs" class="superroot-tab-content" style="display: none;">
+        <div class="card">
+          <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; flex: 1;">
+              <input type="text" id="search-log-input" class="form-input" style="flex: 1; min-width: 200px;" placeholder="Buscar en logs por usuario, cédula, detalle...">
+              <select id="filter-log-evento" class="form-select" style="width: auto; min-width: 160px;">
+                <option value="">Todos los Eventos</option>
+                <option value="LOGIN">Inicio de Sesión</option>
+                <option value="ASIGNAR_HORARIO">Asignación de Horario</option>
+                <option value="ELIMINAR_HORARIO">Eliminación de Horario</option>
+                <option value="ELIMINAR_USUARIO">Eliminación de Usuario</option>
+                <option value="APROBAR_DOCENTE">Aprobación de Solicitud</option>
+                <option value="RECHAZAR_DOCENTE">Rechazo de Solicitud</option>
+                <option value="CAMBIAR_ESTADO_DOCENTE">Cambio de Estado</option>
+                <option value="MARCAJE_ASISTENCIA">Marcajes de Asistencia</option>
+                <option value="ACTUALIZAR_MATERIAS_DOCENTE">Actualización de Materias</option>
+              </select>
+              <input type="date" id="filter-log-fecha" class="form-input" style="width: auto;">
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="SuperrootModule.loadSystemLogs()">
+              <span>Actualizar Logs</span>
+            </button>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>#ID</th>
+                  <th>Tipo Evento</th>
+                  <th>Usuario</th>
+                  <th>Descripción del Registro de Actividad</th>
+                  <th>IP Origen</th>
+                  <th>Fecha y Hora</th>
+                </tr>
+              </thead>
+              <tbody id="system-logs-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Contenido Tab 4: Generador de QR Institucional -->
+      <div id="tab-qr-generador" class="superroot-tab-content" style="display: none;">
+        <div id="qr-official-display"></div>
+      </div>
+
+      <!-- Contenido Tab 5: Logs y Reportes de Asistencias con Puntualidad -->
+      <div id="tab-asistencias-logs" class="superroot-tab-content" style="display: none;">
+        <div class="card">
+          <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+              <input type="date" id="filter-asistencia-fecha" class="form-input" style="width: auto;">
+              <select id="filter-asistencia-tipo" class="form-select" style="width: auto;">
+                <option value="">Tipo (Todos)</option>
+                <option value="ENTRADA">Solo ENTRADA</option>
+                <option value="SALIDA">Solo SALIDA</option>
+              </select>
+              <select id="filter-asistencia-puntualidad" class="form-select" style="width: auto;">
+                <option value="">Puntualidad (Todos)</option>
+                <option value="A_TIEMPO">A Tiempo</option>
+                <option value="TARDE">Retardo (Tarde)</option>
+                <option value="FUERA_DE_HORARIO">Fuera de Horario</option>
+                <option value="SIN_HORARIO">Sin Horario Asignado</option>
+              </select>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="SuperrootModule.exportarLogsCSV()">
+              <span>Exportar a CSV / Excel</span>
+            </button>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Foto</th>
+                  <th>Docente</th>
+                  <th>Fecha y Hora</th>
+                  <th>Evento</th>
+                  <th>Control Puntualidad / Clase</th>
+                  <th>IP Origen</th>
+                </tr>
+              </thead>
+              <tbody id="asistencias-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ----------------------------------------------------------------------
+         VISTA 5: PANEL DEL DOCENTE (RESPONSIVE PC & MOBILE)
+         ---------------------------------------------------------------------- -->
+    <section id="view-docente" class="view-section">
+      <div class="docente-dashboard-wrapper">
+        
+        <!-- Tarjeta de Bienvenida y Estado del Día -->
+        <div class="card docente-welcome-card" style="border-top: 4px solid var(--unermb-blue-primary); margin-bottom: 1rem;">
+          <div class="docente-welcome-inner">
+            <img id="docente-welcome-photo" src="multimedia/uner.png" alt="Foto Carnet" class="docente-photo-thumb" style="width: 72px; height: 88px;">
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">
+                DOCENTE PNF EN INFORMÁTICA
+              </div>
+              <h2 id="docente-welcome-name" style="font-size: 1.25rem; color: var(--unermb-blue-dark); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Docente</h2>
+              <div id="docente-welcome-ci" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.4rem;">C.I.: V-00000000</div>
+              <span id="badge-estado-hoy" class="badge badge-pendiente">Consultando estado...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pestañas Docente -->
+        <div class="tabs-nav docente-tabs-nav">
+          <button class="tab-btn active" data-tab="tab-docente-scanner">
+            <span>Escáner QR</span>
+          </button>
+          <button class="tab-btn" data-tab="tab-docente-horario">
+            <span>Mi Horario Semanal</span>
+          </button>
+          <button class="tab-btn" data-tab="tab-docente-historial">
+            <span>Historial Asistencia</span>
+          </button>
+          <button class="tab-btn" data-tab="tab-docente-materias">
+            <span>Mis Materias</span>
+          </button>
+        </div>
+
+        <!-- Tab 1: Escáner QR con Cámara Integrada -->
+        <div id="tab-docente-scanner" class="docente-tab-content">
+          <div class="docente-scanner-card-wrapper">
+            <div class="scanner-viewport-card">
+              <div style="text-align: center; margin-bottom: 0.85rem;">
+                <h3 style="color: #ffffff; font-size: 1.15rem; margin-bottom: 0.25rem;">
+                  Escaneo de Asistencia Institucional
+                </h3>
+                <p style="font-size: 0.8rem; color: #94a3b8;" id="scan-status-text">
+                  Apunte la cámara hacia el Código QR oficial de la Coordinación
+                </p>
+              </div>
+
+              <!-- Visor de la Cámara -->
+              <div class="scanner-video-wrapper">
+                <div id="qr-reader"></div>
+                
+                <!-- Marco Overlay con Láser Animado -->
+                <div class="scanner-overlay" id="scanner-overlay" style="display: none;">
+                  <div class="scan-box-target">
+                    <div class="scan-laser-line"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Controles de la Cámara -->
+              <div class="scanner-controls">
+                <button id="btn-start-scanner" class="btn btn-primary btn-block btn-lg" style="background: var(--unermb-blue-accent);">
+                  <span>Activar Cámara de Escaneo</span>
+                </button>
+                <button id="btn-stop-scanner" class="btn btn-danger btn-block" style="display: none;">
+                  <span>Detener Cámara</span>
+                </button>
+                <button id="btn-switch-camera" class="btn btn-secondary btn-sm" style="margin-top: 0.4rem;">
+                  <span>Cambiar Cámara</span>
+                </button>
+              </div>
+
+              <!-- Fallback para Cargar Archivo con QR -->
+              <div style="margin-top: 1rem; padding-top: 0.85rem; border-top: 1px solid #1e293b; text-align: center;">
+                <label for="qr-file-fallback-input" style="font-size: 0.8rem; color: #93c5fd; cursor: pointer; text-decoration: underline;">
+                  ¿Problemas con la cámara? Haga clic aquí para subir una foto con el QR
+                </label>
+                <input type="file" id="qr-file-fallback-input" accept="image/*" style="display: none;">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Mi Horario Semanal (Requerimiento 2.B.2) -->
+        <div id="tab-docente-horario" class="docente-tab-content" style="display: none;">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">Mi Horario Semanal Oficial</h3>
+                <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.2rem;">
+                  Franjas horarias y clases asignadas por la Coordinación (PNF Informática)
+                </p>
+              </div>
+            </div>
+            <div id="docente-horario-container"></div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Historial Personal -->
+        <div id="tab-docente-historial" class="docente-tab-content" style="display: none;">
+          <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+              <h3 class="card-title">Mis Marcajes de Asistencia</h3>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">
+                <span id="docente-stat-entradas" style="font-weight: 700; color: var(--status-active);">0</span> Entradas / 
+                <span id="docente-stat-salidas" style="font-weight: 700; color: var(--status-salida);">0</span> Salidas
+              </div>
+            </div>
+            <div id="docente-historial-list"></div>
+          </div>
+        </div>
+
+        <!-- Tab 4: Mis Materias (Solo Lectura - Asignadas por Superroot) -->
+        <div id="tab-docente-materias" class="docente-tab-content" style="display: none;">
+          <div class="card">
+            <div class="card-header" style="flex-wrap: wrap; gap: 0.5rem;">
+              <div>
+                <h3 class="card-title">Unidades Curriculares Asignadas</h3>
+                <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.2rem;">
+                  Materias oficiales asignadas exclusivamente por la Coordinación del PNF en Informática
+                </p>
+              </div>
+              <span class="badge" style="background: var(--unermb-blue-dark); color: #fff;">Asignación por Superroot</span>
+            </div>
+            <div id="docente-materias-cards"></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========================================================================
+       MODAL: GESTIÓN Y ASIGNACIÓN DE HORARIO Y MATERIAS DOCENTE (SUPERROOT)
+       ======================================================================== -->
+  <div id="modal-docente-horario" class="modal-overlay" style="display: none;">
+    <div class="modal-content modal-content-lg">
+      <div class="modal-header">
+        <h3 class="modal-title">Gestión de Materias y Horario de Clases</h3>
+        <button type="button" class="btn-close-modal" onclick="SuperrootModule.cerrarGestionHorario()" title="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="horario-docente-info"></div>
+        <div id="horario-docente-materias-wrapper"></div>
+        <div id="horario-docente-table-wrapper"></div>
+        <div id="horario-cascade-selector-wrapper"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL: RESTABLECER / ACTUALIZAR CONTRASEÑA DOCENTE
+       ======================================================================== -->
+  <div id="modal-reset-password" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Restablecer Contraseña</h3>
+        <button type="button" class="btn-close-modal" onclick="closeResetPasswordModal()" title="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+          Ingrese su Cédula y su Correo Registrado para definir una nueva clave de acceso:
+        </p>
+        <form id="reset-password-form">
+          <div class="form-group">
+            <label for="reset-cedula" class="form-label">Cédula de Identidad <span class="required">*</span></label>
+            <input type="text" id="reset-cedula" class="form-input" placeholder="ej. 32222500" required>
+          </div>
+          <div class="form-group">
+            <label for="reset-email" class="form-label">Correo Electrónico <span class="required">*</span></label>
+            <input type="email" id="reset-email" class="form-input" placeholder="ej. docente@unermb.edu.ve" required>
+          </div>
+          <div class="form-group">
+            <label for="reset-new-password" class="form-label">Nueva Contraseña <span class="required">*</span></label>
+            <div class="password-input-wrapper">
+              <input type="password" id="reset-new-password" class="form-input" placeholder="Mínimo 8 caracteres" required autocomplete="new-password">
+              <button type="button" class="btn-toggle-password" onclick="togglePasswordVisibility('reset-new-password', this)" title="Mostrar / Ocultar contraseña" aria-label="Mostrar contraseña">
+                <svg class="icon-svg icon-svg-stroke" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </button>
+            </div>
+            <div class="validation-error" id="error-reset-new-password"></div>
+          </div>
+          <div class="form-group">
+            <label for="reset-confirm-password" class="form-label">Confirmar Nueva Contraseña <span class="required">*</span></label>
+            <div class="password-input-wrapper">
+              <input type="password" id="reset-confirm-password" class="form-input" placeholder="Repita la nueva contraseña" required autocomplete="new-password">
+              <button type="button" class="btn-toggle-password" onclick="togglePasswordVisibility('reset-confirm-password', this)" title="Mostrar / Ocultar contraseña" aria-label="Mostrar contraseña">
+                <svg class="icon-svg icon-svg-stroke" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </button>
+            </div>
+            <div class="validation-error" id="error-reset-confirm-password"></div>
+          </div>
+
+          <!-- Panel de Seguridad en Modal de Restablecimiento -->
+          <div class="password-security-card" id="reset-password-security-card">
+            <div class="password-strength-header">
+              <span class="password-strength-title">Nivel de Seguridad de Contraseña:</span>
+              <span class="password-strength-label" id="reset-strength-label">Sin ingresar</span>
+            </div>
+            <div class="password-strength-bar-track">
+              <div class="password-strength-bar-fill" id="reset-strength-bar"></div>
+            </div>
+            <ul class="password-checklist">
+              <li class="password-checklist-item" id="reset-crit-length">
+                <span class="checklist-icon">●</span>
+                <span>Mínimo 8 caracteres</span>
+              </li>
+              <li class="password-checklist-item" id="reset-crit-casing">
+                <span class="checklist-icon">●</span>
+                <span>Mayúscula y minúscula (A-z)</span>
+              </li>
+              <li class="password-checklist-item" id="reset-crit-number">
+                <span class="checklist-icon">●</span>
+                <span>Al menos un número (0-9)</span>
+              </li>
+              <li class="password-checklist-item" id="reset-crit-symbol">
+                <span class="checklist-icon">●</span>
+                <span>Carácter especial (!@#$...)</span>
+              </li>
+            </ul>
+          </div>
+
+          <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem;">
+            <button type="button" class="btn btn-secondary btn-block" onclick="closeResetPasswordModal()">Cancelar</button>
+            <button type="submit" id="btn-reset-password-submit" class="btn btn-primary btn-block">Guardar Nueva Contraseña</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Librería de Escáner QR (Descargada localmente para funcionamiento offline) -->
+  <script src="js/libs/html5-qrcode.min.js"></script>
+
+  <!-- Scripts de la Aplicación -->
+  <script src="js/app.js"></script>
+  <script src="js/pensumCascade.js"></script>
+  <script src="js/register.js"></script>
+  <script src="js/superroot.js"></script>
+  <script src="js/docente.js"></script>
+
+</body>
+</html>
+
