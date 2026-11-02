@@ -1,9 +1,41 @@
 const crypto = require('crypto');
 const QRCode = require('qrcode');
 const db = require('../database/db');
-const { BLOQUES_HORARIOS, DIAS_SEMANA } = require('../database/pensumData');
+const { BLOQUES_HORARIOS, DIAS_SEMANA, PENSUM_ESTRUCTURA } = require('../database/pensumData');
 
 const HMAC_SECRET = process.env.QR_HMAC_SECRET || 'UNERMB_PNF_HMAC_SECRET_KEY_ASISTENCIA_2026';
+
+/**
+ * Obtener fecha vigente en Venezuela (YYYY-MM-DD) bajo zona horaria America/Caracas (UTC-4)
+ */
+function getFechaVenezuelaActual(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Caracas',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(date);
+}
+
+/**
+ * Obtener día de la semana en español en Venezuela
+ */
+function getDiaSemanaVenezuela(date = new Date()) {
+  const weekdayStr = new Intl.DateTimeFormat('es-VE', {
+    timeZone: 'America/Caracas',
+    weekday: 'long'
+  }).format(date);
+  return weekdayStr.charAt(0).toUpperCase() + weekdayStr.slice(1);
+}
+
+/**
+ * Convertir HH:MM:SS a minutos desde medianoche
+ */
+function timeToMinutes(timeStr) {
+  if (!timeStr) return 0;
+  const parts = String(timeStr).split(':');
+  return (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
+}
 
 /**
  * Obtener estadísticas globales para el Dashboard del Superroot
@@ -424,10 +456,19 @@ const getDocenteHorario = async (req, res) => {
         hd.bloque_numero ASC
     `, [docenteId]);
 
+    // Catálogo completo de materias oficiales para asignación directa en cuadrícula sin pasos previos
+    const catalogoMaterias = await db.query(`
+      SELECT id, codigo, nombre_materia, trayecto, trimestre, pnf, horas_semanales
+      FROM materias
+      ORDER BY id ASC
+    `);
+
     res.json({
       success: true,
       docente,
       materiasGenerales,
+      catalogoMaterias,
+      estructuraPensum: PENSUM_ESTRUCTURA,
       horarios,
       bloquesHorariosDisponibles: BLOQUES_HORARIOS,
       diasSemanaDisponibles: DIAS_SEMANA
@@ -700,47 +741,50 @@ const eliminarMateriaDocente = async (req, res) => {
 };
 
 /**
- * Generador y visualizador de Código QR Institucional Oficial
- * Utiliza HMAC SHA-256 para firmar el payload y prevenir falsificaciones
+ * Generador y visualizador automatizado de Código QR Institucional Diario
+ * Ciclo automático de 24 horas (00:00:00 a 23:59:59, America/Caracas) firmado con HMAC SHA-256
+ * No requiere regeneración manual: se calcula determinísticamente por la fecha vigente del día.
  */
 const generarQROficial = async (req, res) => {
   try {
-    let tokens = await db.query(
-      `SELECT id, token_codigo, firma_hmac, valido_hasta, activo
-       FROM qr_tokens_seguridad
-       WHERE activo = 1 AND valido_hasta > NOW()
-       ORDER BY id DESC LIMIT 1`
-    );
+    const fechaVigente = getFechaVenezuelaActual(new Date());
+    const codigoDiario = `UNERMB-PNF-INFO-QR-${fechaVigente}`;
+    const validoDesde = `${fechaVigente} 00:00:00`;
+    const validoHasta = `${fechaVigente} 23:59:59`;
 
-    let tokenActivo;
-    if (!tokens || tokens.length === 0) {
-      const nuevoCodigo = 'UNERMB-PNF-INFO-OFICIAL-SEC2026';
-      const nuevaFirma = 'HMAC_SHA256_UNERMB_PNF_COORDINACION_KEY_2026_VALID';
-      const insertResult = await db.execute(
-        `INSERT INTO qr_tokens_seguridad (token_codigo, firma_hmac, valido_hasta, activo, creado_por)
-         VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 365 DAY), 1, ?)`,
-        [nuevoCodigo, nuevaFirma, req.user?.id || null]
-      );
-      tokens = await db.query('SELECT id, token_codigo, firma_hmac, valido_hasta, activo FROM qr_tokens_seguridad WHERE id = ?', [insertResult.insertId]);
-      tokenActivo = tokens[0];
-    } else {
-      tokenActivo = tokens[0];
-    }
-
-    const timestamp = Date.now();
-    const nonce = crypto.randomBytes(8).toString('hex');
+    // Firma criptográfica diaria determinística (válida únicamente durante las 24h de fechaVigente)
     const hmac = crypto.createHmac('sha256', HMAC_SECRET);
-    hmac.update(`${tokenActivo.token_codigo}|${timestamp}|${nonce}`);
-    const firma = hmac.digest('hex');
+    hmac.update(`${codigoDiario}|${fechaVigente}|CICLO_DIARIO_24H`);
+    const firmaDiaria = hmac.digest('hex');
+
+    // Sincronizar registro del token diario en base de datos para trazabilidad
+    try {
+      const existing = await db.query(
+        `SELECT id FROM qr_tokens_seguridad WHERE token_codigo = ? LIMIT 1`,
+        [codigoDiario]
+      );
+      if (!existing || existing.length === 0) {
+        await db.execute(`UPDATE qr_tokens_seguridad SET activo = 0 WHERE activo = 1`);
+        await db.execute(
+          `INSERT INTO qr_tokens_seguridad (token_codigo, firma_hmac, valido_hasta, activo, creado_por)
+           VALUES (?, ?, ?, 1, ?)`,
+          [codigoDiario, firmaDiaria, validoHasta, req.user?.id || null]
+        );
+      }
+    } catch (syncErr) {
+      // No interrumpir renderizado si hay carrera concurrente en el insert diario
+      console.warn('[QR] Nota de sincronización diaria:', syncErr.message);
+    }
 
     const qrPayload = JSON.stringify({
       institucion: 'UNERMB',
       programa: 'PNF EN INFORMÁTICA',
-      codigo: tokenActivo.token_codigo,
-      ts: timestamp,
-      nonce: nonce,
-      firma: firma,
-      valido_hasta: tokenActivo.valido_hasta
+      codigo: codigoDiario,
+      fecha: fechaVigente,
+      ciclo: '24H',
+      valido_desde: validoDesde,
+      valido_hasta: validoHasta,
+      firma: firmaDiaria
     });
 
     const qrDataURL = await QRCode.toDataURL(qrPayload, {
@@ -757,54 +801,36 @@ const generarQROficial = async (req, res) => {
       success: true,
       qrDataUrl: qrDataURL,
       qrDataURL: qrDataURL,
-      token: tokenActivo.token_codigo,
-      valido_hasta: tokenActivo.valido_hasta,
+      token: codigoDiario,
+      fecha_vigente: fechaVigente,
+      valido_desde: validoDesde,
+      valido_hasta: validoHasta,
       qrPayload,
       info: {
         institucion: 'UNIVERSIDAD NACIONAL EXPERIMENTAL "RAFAEL MARÍA BARALT"',
         programa: 'PNF EN INFORMÁTICA',
         ubicacion: 'Coordinación Docente / Punto Central de Marcaje',
-        valido_hasta: tokenActivo.valido_hasta
+        fecha_vigente: fechaVigente,
+        valido_desde: validoDesde,
+        valido_hasta: validoHasta,
+        rotacion: 'AUTOMÁTICA DIARIA (00:00:00 - 23:59:59 HLV)'
       }
     });
   } catch (err) {
-    console.error('Error generando QR:', err);
-    res.status(500).json({ success: false, error: 'Error al generar el Código QR Oficial: ' + err.message });
+    console.error('Error generando QR diario:', err);
+    res.status(500).json({ success: false, error: 'Error al generar el Código QR Oficial Diario: ' + err.message });
   }
 };
 
 /**
- * Renovar o regenerar el Token QR oficial (Superroot)
+ * Mantener endpoint por retrocompatibilidad delegando al generador diario automático
  */
 const renovarQROficial = async (req, res) => {
-  try {
-    await db.execute(`UPDATE qr_tokens_seguridad SET activo = 0 WHERE activo = 1`);
-
-    const nuevoCodigo = `UNERMB-PNF-INFO-${crypto.randomBytes(4).toString('hex').toUpperCase()}-2026`;
-    const nuevaFirma = crypto.randomBytes(16).toString('hex');
-
-    await db.execute(
-      `INSERT INTO qr_tokens_seguridad (token_codigo, firma_hmac, valido_hasta, activo, creado_por)
-       VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 365 DAY), 1, ?)`,
-      [nuevoCodigo, nuevaFirma, req.user?.id || null]
-    );
-
-    await db.logEvent(
-      req.user?.id,
-      'RENOVAR_QR',
-      `Nuevo Token QR Institucional generado: ${nuevoCodigo}`,
-      req
-    );
-
-    return generarQROficial(req, res);
-  } catch (err) {
-    console.error('Error al renovar QR:', err);
-    res.status(500).json({ success: false, error: 'Error al renovar QR: ' + err.message });
-  }
+  return generarQROficial(req, res);
 };
 
 /**
- * Reporte y registros de asistencias con filtros y verificación de puntualidad
+ * Reporte y registros de asistencias con filtros, verificación de puntualidad y justificativos de retardo
  */
 const getAsistenciasLogs = async (req, res) => {
   const { fecha, docente_id, tipo, puntualidad } = req.query;
@@ -826,7 +852,11 @@ const getAsistenciasLogs = async (req, res) => {
         a.puntualidad_estado,
         a.minutos_retraso,
         a.bloque_horario_detectado,
-        a.materia_detectada
+        a.materia_detectada,
+        a.justificacion_texto,
+        a.justificacion_imagen_url,
+        a.justificacion_fecha,
+        a.justificacion_estado
       FROM asistencias a
       JOIN usuarios u ON a.usuario_id = u.id
       WHERE 1=1
@@ -872,10 +902,118 @@ const getAsistenciasLogs = async (req, res) => {
         a_tiempo: totalATiempo,
         tarde: totalTarde
       },
-      logs
+      logs,
+      asistencias: logs
     });
   } catch (err) {
     console.error('Error al obtener logs de asistencia:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+/**
+ * Feed centralizado de eventos para el motor de notificaciones del Rol SUPERROOT (Coordinador):
+ * 1. Solicitudes de registro de nuevos usuarios (PENDIENTE)
+ * 2. Registros de marcaje de entrada y salida (y retardos)
+ * 3. Alertas por inasistencia o retardo en clases programadas hoy (> 10 min sin marcaje)
+ * 4. Recepción de justificativos enviados por los docentes
+ */
+const getNotificacionesEventos = async (req, res) => {
+  try {
+    const fechaHoy = getFechaVenezuelaActual(new Date());
+    const diaSemanaHoy = getDiaSemanaVenezuela(new Date());
+    const horaActualStr = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'America/Caracas',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }).format(new Date());
+    const minutosActuales = timeToMinutes(horaActualStr);
+
+    // 1. Solicitudes pendientes
+    const solicitudesPendientes = await db.query(`
+      SELECT id, nombre, apellido, cedula, email, foto_carnet_url, created_at
+      FROM usuarios
+      WHERE rol = 'DOCENTE' AND estado = 'PENDIENTE'
+      ORDER BY created_at DESC
+      LIMIT 20
+    `);
+
+    // 2. Marcajes de hoy (incluyendo retardos y justificativos)
+    const marcajesHoy = await db.query(`
+      SELECT 
+        a.id, a.usuario_id, u.nombre, u.apellido, u.cedula,
+        a.fecha_hora, a.tipo, a.puntualidad_estado, a.minutos_retraso,
+        a.bloque_horario_detectado, a.materia_detectada,
+        a.justificacion_texto, a.justificacion_imagen_url,
+        a.justificacion_fecha, a.justificacion_estado
+      FROM asistencias a
+      JOIN usuarios u ON a.usuario_id = u.id
+      WHERE DATE(a.fecha_hora) = CURDATE()
+      ORDER BY a.fecha_hora DESC
+      LIMIT 50
+    `);
+
+    // 3. Justificativos recibidos recientemente
+    const justificacionesRecientes = await db.query(`
+      SELECT 
+        a.id, a.usuario_id, u.nombre, u.apellido, u.cedula,
+        a.fecha_hora, a.minutos_retraso, a.materia_detectada, a.bloque_horario_detectado,
+        a.justificacion_texto, a.justificacion_imagen_url, a.justificacion_fecha, a.justificacion_estado
+      FROM asistencias a
+      JOIN usuarios u ON a.usuario_id = u.id
+      WHERE a.justificacion_estado IN ('ENVIADA', 'REVISADA')
+        AND a.justificacion_texto IS NOT NULL
+      ORDER BY a.justificacion_fecha DESC
+      LIMIT 20
+    `);
+
+    // 4. Detectar alertas de inasistencia/retardo activo hoy (clases donde pasaron >= 10 min del inicio y el docente no ha marcado ENTRADA hoy)
+    const horariosHoy = await db.query(`
+      SELECT 
+        hd.id, hd.docente_id, u.nombre, u.apellido, u.cedula,
+        hd.dia_semana, hd.bloque_numero, hd.bloque_horario, hd.hora_inicio, hd.hora_fin, hd.materia_nombre
+      FROM horarios_docente hd
+      JOIN usuarios u ON hd.docente_id = u.id
+      WHERE hd.dia_semana = ? AND u.estado = 'ACTIVO'
+    `, [diaSemanaHoy]);
+
+    const docentesConEntradaHoy = new Set(
+      marcajesHoy.filter(m => m.tipo === 'ENTRADA').map(m => m.usuario_id)
+    );
+
+    const alertasInasistencia = [];
+    for (const h of horariosHoy) {
+      const minInicio = timeToMinutes(h.hora_inicio);
+      const minFin = timeToMinutes(h.hora_fin);
+      if (minutosActuales >= minInicio + 10 && minutosActuales <= minFin) {
+        if (!docentesConEntradaHoy.has(h.docente_id)) {
+          alertasInasistencia.push({
+            horario_id: h.id,
+            docente_id: h.docente_id,
+            nombre: h.nombre,
+            apellido: h.apellido,
+            cedula: h.cedula,
+            materia_nombre: h.materia_nombre,
+            bloque_horario: h.bloque_horario,
+            minutos_transcurridos: minutosActuales - minInicio,
+            fecha: fechaHoy
+          });
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      fecha_vigente: fechaHoy,
+      solicitudesPendientes,
+      marcajesRecientes: marcajesHoy,
+      justificacionesRecientes,
+      alertasInasistencia
+    });
+  } catch (err) {
+    console.error('Error en getNotificacionesEventos:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -896,5 +1034,6 @@ module.exports = {
   eliminarMateriaDocente,
   generarQROficial,
   renovarQROficial,
-  getAsistenciasLogs
+  getAsistenciasLogs,
+  getNotificacionesEventos
 };

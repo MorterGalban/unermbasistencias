@@ -9,15 +9,33 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+// Directorio seguro de almacenamiento para evidencias de justificativos de retardo
+const justificativosDir = path.join(__dirname, '..', 'uploads', 'justificativos');
+if (!fs.existsSync(justificativosDir)) {
+  fs.mkdirSync(justificativosDir, { recursive: true });
+}
+
 // Configuración de almacenamiento en disco con nombres aleatorios no predecibles
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname).toLowerCase();
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
     const uniqueSuffix = crypto.randomBytes(12).toString('hex');
     const safeFilename = `carnet_${Date.now()}_${uniqueSuffix}${ext}`;
+    cb(null, safeFilename);
+  }
+});
+
+const justificativoStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, justificativosDir);
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    const uniqueSuffix = crypto.randomBytes(12).toString('hex');
+    const safeFilename = `justificativo_${Date.now()}_${uniqueSuffix}${ext}`;
     cb(null, safeFilename);
   }
 });
@@ -29,7 +47,7 @@ const fileFilter = (req, file, cb) => {
 
   const ext = path.extname(file.originalname).toLowerCase();
 
-  if (!allowedMimeTypes.includes(file.mimetype) || !allowedExtensions.includes(ext)) {
+  if (!allowedMimeTypes.includes(file.mimetype) && !allowedExtensions.includes(ext)) {
     const error = new Error('Formato de archivo inválido. Solo se admiten imágenes JPG, JPEG, PNG o WEBP.');
     error.code = 'INVALID_FILE_TYPE';
     return cb(error, false);
@@ -46,6 +64,14 @@ const uploadCarnet = multer({
     fileSize: 5 * 1024 * 1024 // 5 MB
   }
 }).single('foto_carnet');
+
+const uploadJustificativo = multer({
+  storage: justificativoStorage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5 MB
+  }
+}).single('evidencia');
 
 // Middleware envoltorio para captura de errores controlados
 const handleCarnetUpload = (req, res, next) => {
@@ -71,6 +97,31 @@ const handleCarnetUpload = (req, res, next) => {
   });
 };
 
+// Middleware envoltorio para captura de errores en evidencia opcional de justificativo
+const handleJustificativoUpload = (req, res, next) => {
+  uploadJustificativo(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          success: false,
+          error: 'La imagen del justificativo excede el tamaño máximo permitido de 5 MB.'
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        error: `Error al subir la imagen del justificativo: ${err.message}`
+      });
+    } else if (err) {
+      return res.status(400).json({
+        success: false,
+        error: err.message || 'Error en la validación del archivo de evidencia.'
+      });
+    }
+    next();
+  });
+};
+
 module.exports = {
-  handleCarnetUpload
+  handleCarnetUpload,
+  handleJustificativoUpload
 };

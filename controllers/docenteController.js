@@ -5,6 +5,18 @@ const { BLOQUES_HORARIOS, DIAS_SEMANA } = require('../database/pensumData');
 const HMAC_SECRET = process.env.QR_HMAC_SECRET || 'UNERMB_PNF_HMAC_SECRET_KEY_ASISTENCIA_2026';
 
 /**
+ * Obtener fecha actual en Venezuela (YYYY-MM-DD) bajo zona horaria America/Caracas (UTC-4)
+ */
+function getFechaVenezuelaActual(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Caracas',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(date);
+}
+
+/**
  * Obtener el día de la semana actual en español con zona horaria de Venezuela (Lunes a Viernes)
  */
 function getDiaSemanaActual(date = new Date()) {
@@ -131,34 +143,56 @@ const registrarMarcajeQR = async (req, res) => {
   }
 
   try {
-    // 1. Verificación de Ciberseguridad del Código QR Institucional
+    // 1. Verificación estricta de Ciberseguridad y Vigencia Diaria (24h) del Código QR Institucional
+    const fechaHoyVenezuela = getFechaVenezuelaActual(new Date());
     let esValido = false;
     let qrData = null;
 
     try {
       qrData = JSON.parse(qr_payload);
-      if (qrData.institucion === 'UNERMB' && qrData.codigo && qrData.codigo.includes('UNERMB-PNF-INFO')) {
-        if (qrData.firma && qrData.nonce) {
+    } catch {
+      qrData = null;
+    }
+
+    if (qrData && qrData.institucion === 'UNERMB' && qrData.codigo && String(qrData.codigo).includes('UNERMB-PNF-INFO')) {
+      // Caso A: Nuevo QR Diario Automatizado con campo 'fecha' (YYYY-MM-DD) y firma HMAC diaria
+      if (qrData.fecha) {
+        if (qrData.fecha !== fechaHoyVenezuela) {
+          return res.status(403).json({
+            success: false,
+            error: `Código QR expirado: El QR escaneado pertenece a una fecha anterior (${qrData.fecha}). Solo se admite el Código QR Oficial vigente del día de hoy (${fechaHoyVenezuela}).`
+          });
+        }
+        if (qrData.firma) {
           const hmac = crypto.createHmac('sha256', HMAC_SECRET);
-          hmac.update(`${qrData.codigo}|${qrData.ts}|${qrData.nonce}`);
+          hmac.update(`${qrData.codigo}|${qrData.fecha}|CICLO_DIARIO_24H`);
           const firmaCalculada = hmac.digest('hex');
           if (firmaCalculada === qrData.firma) {
             esValido = true;
           }
-        } else {
+        }
+      } else if (qrData.ts && qrData.nonce && qrData.firma) {
+        // Caso B: Payload firmado con timestamp (validar que pertenezca estrictamente al día de hoy en Venezuela)
+        const fechaQrTs = getFechaVenezuelaActual(new Date(Number(qrData.ts)));
+        if (fechaQrTs !== fechaHoyVenezuela) {
+          return res.status(403).json({
+            success: false,
+            error: `Código QR expirado: El QR escaneado fue emitido en una fecha anterior (${fechaQrTs}). Escanee el Código QR del día de hoy (${fechaHoyVenezuela}).`
+          });
+        }
+        const hmac = crypto.createHmac('sha256', HMAC_SECRET);
+        hmac.update(`${qrData.codigo}|${qrData.ts}|${qrData.nonce}`);
+        const firmaCalculada = hmac.digest('hex');
+        if (firmaCalculada === qrData.firma) {
           esValido = true;
         }
-      }
-    } catch {
-      if (qr_payload.includes('UNERMB-PNF-INFO-OFICIAL') || qr_payload.includes('UNERMB-PNF-INFO')) {
-        esValido = true;
       }
     }
 
     if (!esValido) {
       return res.status(403).json({
         success: false,
-        error: 'Código QR inválido o no reconocido por el sistema oficial de la UNERMB PNF en Informática.'
+        error: 'Código QR inválido, alterado o expirado. Por favor escanee el Código QR Oficial vigente del día de hoy en Coordinación.'
       });
     }
 
@@ -244,7 +278,8 @@ const registrarMarcajeQR = async (req, res) => {
     ]);
 
     const [nuevoRegistro] = await db.query(`
-      SELECT id, usuario_id, fecha_hora, tipo, puntualidad_estado, minutos_retraso, bloque_horario_detectado, materia_detectada
+      SELECT id, usuario_id, fecha_hora, tipo, puntualidad_estado, minutos_retraso, bloque_horario_detectado, materia_detectada,
+             justificacion_texto, justificacion_imagen_url, justificacion_fecha, justificacion_estado
       FROM asistencias
       WHERE id = ?
     `, [result.insertId]);
@@ -261,6 +296,7 @@ const registrarMarcajeQR = async (req, res) => {
       success: true,
       tipo: nuevoTipo,
       mensaje: `¡Marcaje de ${nuevoTipo} registrado con éxito!`,
+      requiereJustificacionOpcional: nuevoTipo === 'ENTRADA' && evaluacion.estado === 'TARDE',
       puntualidad: evaluacion,
       registro: nuevoRegistro,
       docente: {
@@ -287,7 +323,8 @@ const getHistorialPersonal = async (req, res) => {
   try {
     const marcajes = await db.query(`
       SELECT 
-        id, fecha_hora, tipo, metodo, ip_address, puntualidad_estado, minutos_retraso, bloque_horario_detectado, materia_detectada
+        id, fecha_hora, tipo, metodo, ip_address, puntualidad_estado, minutos_retraso, bloque_horario_detectado, materia_detectada,
+        justificacion_texto, justificacion_imagen_url, justificacion_fecha, justificacion_estado
       FROM asistencias
       WHERE usuario_id = ?
       ORDER BY fecha_hora DESC
@@ -429,10 +466,94 @@ const getMiHorario = async (req, res) => {
   }
 };
 
+/**
+ * Registrar justificación opcional por retardo docente (texto descriptivo + imagen opcional de récipe/constancia)
+ */
+const justificarRetardoAsistencia = async (req, res) => {
+  const usuarioId = req.user.id;
+  const asistenciaId = parseInt(req.params.id || req.body.asistencia_id, 10);
+  const motivo = (req.body.motivo || req.body.justificacion_texto || '').trim();
+  const evidenciaUrl = req.file ? `/uploads/justificativos/${req.file.filename}` : null;
+
+  if (isNaN(asistenciaId)) {
+    return res.status(400).json({
+      success: false,
+      error: 'ID de registro de asistencia inválido.'
+    });
+  }
+
+  if (!motivo && !evidenciaUrl) {
+    return res.status(400).json({
+      success: false,
+      error: 'Debe ingresar una descripción del motivo del retardo o adjuntar una imagen de respaldo.'
+    });
+  }
+
+  try {
+    const registros = await db.query(
+      `SELECT id, usuario_id, tipo, puntualidad_estado, minutos_retraso, materia_detectada, bloque_horario_detectado
+       FROM asistencias WHERE id = ?`,
+      [asistenciaId]
+    );
+
+    if (registros.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'El registro de asistencia indicado no existe.'
+      });
+    }
+
+    const reg = registros[0];
+    if (reg.usuario_id !== usuarioId && req.user.rol !== 'SUPERROOT') {
+      return res.status(403).json({
+        success: false,
+        error: 'No tiene permisos para modificar este registro de asistencia.'
+      });
+    }
+
+    await db.execute(
+      `UPDATE asistencias
+       SET justificacion_texto = ?,
+           justificacion_imagen_url = COALESCE(?, justificacion_imagen_url),
+           justificacion_fecha = NOW(),
+           justificacion_estado = 'ENVIADA'
+       WHERE id = ?`,
+      [motivo || 'Evidencia fotográfica adjunta', evidenciaUrl, asistenciaId]
+    );
+
+    const [actualizado] = await db.query(
+      `SELECT id, usuario_id, fecha_hora, tipo, puntualidad_estado, minutos_retraso, bloque_horario_detectado, materia_detectada,
+              justificacion_texto, justificacion_imagen_url, justificacion_fecha, justificacion_estado
+       FROM asistencias WHERE id = ?`,
+      [asistenciaId]
+    );
+
+    await db.logEvent(
+      usuarioId,
+      'JUSTIFICACION_RETARDO',
+      `El docente ${req.user.nombre} ${req.user.apellido} envió justificativo de retardo (+${reg.minutos_retraso} min en ${reg.materia_detectada || 'Clase'}): "${motivo || 'Imagen adjunta'}"`,
+      req
+    );
+
+    res.json({
+      success: true,
+      message: 'Justificativo de retardo enviado exitosamente a la Coordinación del PNF en Informática.',
+      registro: actualizado
+    });
+  } catch (err) {
+    console.error('Error al guardar justificación de retardo:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Error al registrar el justificativo: ' + err.message
+    });
+  }
+};
+
 module.exports = {
   registrarMarcajeQR,
   getHistorialPersonal,
   getMisMaterias,
   actualizarMisMaterias,
-  getMiHorario
+  getMiHorario,
+  justificarRetardoAsistencia
 };

@@ -40,4 +40,7 @@ router.post('/renovar-qr', superrootController.renovarQROficial);
 // Reporte y Logs de Asistencias con Puntualidad
 router.get('/asistencias', superrootController.getAsistenciasLogs);
 
+// Feed de Eventos de Notificación para el Coordinador (Superroot)
+router.get('/notificaciones-eventos', superrootController.getNotificacionesEventos);
+
 module.exports = router;

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="unermb_primary_navy">#002147</color>
+    <color name="unermb_accent_electric">#0266CC</color>
+    <color name="unermb_sky_blue">#38BDF8</color>
+    <color name="unermb_background">#F8FAFC</color>
+    <color name="unermb_surface">#FFFFFF</color>
+</resources>
+

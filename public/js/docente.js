@@ -18,6 +18,7 @@ const DocenteModule = {
     this.loadHistorialPersonal();
     this.loadMisMaterias();
     this.setupScannerControls();
+    this.setupJustificacionModal();
   },
 
   setupDocenteTabs() {
@@ -307,6 +308,16 @@ const DocenteModule = {
         showToast(`${data.mensaje}${puntText}`, toastType, 7000);
         this.loadHistorialPersonal();
         this.loadMiHorario();
+
+        // Si es ENTRADA con RETARDO (TARDE), desplegar opción no bloqueante para justificar
+        if (data.tipo === 'ENTRADA' && punt && punt.estado === 'TARDE' && data.registro && data.registro.id) {
+          this.abrirModalJustificacion(
+            data.registro.id,
+            punt.materiaNombre || 'Clase Programada',
+            punt.bloqueHorario || '',
+            punt.minutosRetraso || 0
+          );
+        }
       } else {
         showToast(data.error || 'Error al procesar asistencia.', 'error', 6000);
       }
@@ -398,16 +409,29 @@ const DocenteModule = {
           puntualidadBadge = `<span class="badge badge-sin-horario">SIN HORARIO HOY</span>`;
         }
 
+        let justificativoHtml = '';
+        if (isEntrada && item.puntualidad_estado === 'TARDE') {
+          if (item.justificacion_estado === 'ENVIADA' || item.justificacion_estado === 'REVISADA' || item.justificacion_texto) {
+            justificativoHtml = `<span class="badge" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-size: 0.7rem;">Justificativo Enviado</span>`;
+          } else {
+            const matSafe = (item.materia_detectada || 'Clase').replace(/'/g, "\\'");
+            const bloqSafe = (item.bloque_horario_detectado || '').replace(/'/g, "\\'");
+            justificativoHtml = `<button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.7rem; padding: 0.18rem 0.5rem;" onclick="DocenteModule.abrirModalJustificacion(${item.id}, '${matSafe}', '${bloqSafe}', ${item.minutos_retraso || 0})">Justificar Retardo (Opcional)</button>`;
+          }
+        }
+
         return `
           <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 0; border-bottom: 1px solid #f1f5f9; gap: 0.5rem; flex-wrap: wrap;">
             <div>
-              <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.2rem;">
+              <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.2rem; flex-wrap: wrap;">
                 <span class="badge ${badgeClass}">${item.tipo}</span>
                 ${puntualidadBadge}
+                ${justificativoHtml}
               </div>
               <div style="font-size: 0.78rem; color: var(--text-muted);">
                 ${item.materia_detectada ? `Clase: <strong>${item.materia_detectada}</strong> (${item.bloque_horario_detectado})` : 'Marcaje General'}
               </div>
+              ${item.justificacion_texto ? `<div style="font-size: 0.74rem; color: #1e40af; margin-top: 0.2rem;"><em>Motivo enviado: "${item.justificacion_texto}"</em></div>` : ''}
             </div>
             <div style="text-align: right;">
               <span style="font-weight: 700; color: var(--unermb-blue-dark); font-size: 0.9rem;">
@@ -493,6 +517,91 @@ const DocenteModule = {
     } catch (err) {
       container.innerHTML = `<p style="color: var(--status-danger);">Error al cargar materias: ${err.message}</p>`;
     }
+  },
+
+  // ----------------------------------------------------------------------------
+  // MÓDULO OPCIONAL DE JUSTIFICACIÓN POR RETARDO DOCENTE
+  // ----------------------------------------------------------------------------
+  setupJustificacionModal() {
+    const form = document.getElementById('form-justificar-retardo');
+    if (!form || form._boundJustif) return;
+    form._boundJustif = true;
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const asistenciaId = document.getElementById('justificar-asistencia-id')?.value;
+      const motivo = document.getElementById('justificar-motivo-input')?.value.trim() || '';
+      const fileInput = document.getElementById('justificar-evidencia-input');
+      const btnSubmit = document.getElementById('btn-submit-justificativo');
+
+      if (!asistenciaId) return;
+      if (!motivo && (!fileInput || !fileInput.files || fileInput.files.length === 0)) {
+        showToast('Ingrese el motivo escrito del retardo o seleccione una imagen de respaldo.', 'warning');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('motivo', motivo);
+      if (fileInput && fileInput.files && fileInput.files[0]) {
+        formData.append('evidencia', fileInput.files[0]);
+      }
+
+      if (btnSubmit) {
+        btnSubmit.disabled = true;
+        btnSubmit.textContent = 'Enviando...';
+      }
+
+      try {
+        const fullUrl = (typeof API_BASE !== 'undefined')
+          ? `${API_BASE}/api/docente/asistencias/${asistenciaId}/justificar`
+          : `/api/docente/asistencias/${asistenciaId}/justificar`;
+
+        const res = await fetch(fullUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${AppState.token}`
+          },
+          body: formData
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message || 'Justificativo enviado exitosamente.', 'success');
+          this.cerrarModalJustificacion();
+          this.loadHistorialPersonal();
+        } else {
+          showToast(data.error || 'No se pudo enviar el justificativo.', 'error');
+        }
+      } catch (err) {
+        showToast('Error de conexión al enviar justificativo.', 'error');
+      } finally {
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.textContent = 'Enviar Justificativo';
+        }
+      }
+    });
+  },
+
+  abrirModalJustificacion(asistenciaId, materiaNombre, bloqueHorario, minutosRetraso) {
+    const modal = document.getElementById('modal-justificar-retardo');
+    const resumen = document.getElementById('justificar-retardo-resumen');
+    const idInput = document.getElementById('justificar-asistencia-id');
+    const motivoInput = document.getElementById('justificar-motivo-input');
+    const fileInput = document.getElementById('justificar-evidencia-input');
+
+    if (!modal) return;
+    if (idInput) idInput.value = String(asistenciaId);
+    if (motivoInput) motivoInput.value = '';
+    if (fileInput) fileInput.value = '';
+    if (resumen) {
+      resumen.innerHTML = `<strong>Retardo detectado (+${minutosRetraso} min):</strong> Clase <strong>${materiaNombre}</strong> ${bloqueHorario ? `(${bloqueHorario})` : ''}.`;
+    }
+    modal.style.display = 'flex';
+  },
+
+  cerrarModalJustificacion() {
+    const modal = document.getElementById('modal-justificar-retardo');
+    if (modal) modal.style.display = 'none';
   }
 };
 

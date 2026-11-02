@@ -443,108 +443,28 @@ const SuperrootModule = {
       const bloques = data.bloquesHorariosDisponibles || [];
       const dias = data.diasSemanaDisponibles || [];
 
-      // 1. Mostrar información del docente y resumen
+      // 1. Mostrar información del docente y resumen (Flujo simplificado: asignación directa desde la tabla/selector sin tarjeta intermedia)
       infoContainer.innerHTML = `
         <div style="display: flex; align-items: center; gap: 1rem; background: #f8fafc; padding: 0.85rem; border-radius: var(--radius-md); border: 1px solid #e2e8f0; margin-bottom: 1rem;">
-          <img src="${doc.foto_carnet_url}" alt="Foto" style="width: 54px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid var(--unermb-blue-dark);" onerror="this.src='/multimedia/uner.png'">
+          <img src="${doc.foto_carnet_url || '/multimedia/uner.png'}" alt="Foto" style="width: 54px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid var(--unermb-blue-dark);" onerror="this.onerror=null; this.src='/multimedia/uner.png'">
           <div style="flex: 1; min-width: 0;">
             <h3 style="font-size: 1.15rem; color: var(--unermb-blue-dark); margin-bottom: 0.15rem;">${doc.nombre} ${doc.apellido}</h3>
             <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">C.I.: ${typeof formatCedula === 'function' ? formatCedula(doc.cedula) : doc.cedula} &bull; ${doc.email}</div>
             <div style="font-size: 0.75rem; color: var(--text-muted);">
-              <strong>Materias Asignadas:</strong> ${materiasGen.length} / 5 &bull; <strong>Bloques Horario:</strong> ${horarios.length}
+              <strong>Bloques Horarios Asignados:</strong> ${horarios.length} &bull; Seleccione cualquier bloque disponible en la tabla o use el selector inferior para asignar materias directamente.
             </div>
           </div>
           <span class="badge badge-activo">${horarios.length} Bloques Asignados</span>
         </div>
       `;
 
-      // 1.5. Renderizar Gestión Directa de Materias del Docente (Exclusivo Superroot)
       const materiasContainer = document.getElementById('horario-docente-materias-wrapper');
       if (materiasContainer) {
-        let materiasHtml = `
-          <div style="background: #ffffff; border: 1px solid #bfdbfe; border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.25rem; box-shadow: var(--shadow-sm);">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; flex-wrap: wrap; gap: 0.5rem;">
-              <h4 style="font-size: 0.95rem; color: var(--unermb-blue-dark); margin: 0;">
-                Unidades Curriculares Asignadas al Docente (${materiasGen.length} / 5)
-              </h4>
-              <span class="badge" style="background: var(--unermb-blue-primary); color: #fff;">Gestión Superroot</span>
-            </div>
-        `;
-
-        if (materiasGen.length === 0) {
-          materiasHtml += `
-            <div style="font-size: 0.82rem; color: var(--text-muted); padding: 0.75rem; background: #f8fafc; border-radius: var(--radius-sm); border: 1px dashed #cbd5e1; margin-bottom: 0.75rem;">
-              Este docente aún no tiene materias asignadas. Use el selector en cascada para asignarle unidades curriculares del pensum oficial.
-            </div>
-          `;
-        } else {
-          materiasHtml += `
-            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.85rem;">
-              ${materiasGen.map(m => `
-                <span class="materia-tag-editable" style="display: inline-flex; align-items: center; gap: 0.45rem; background: #eff6ff; color: #1e40af; padding: 0.4rem 0.7rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600; border: 1px solid #bfdbfe;">
-                  <span><strong>${m.codigo || 'PNF'}:</strong> ${m.nombre_materia} (${m.trayecto} - ${m.trimestre})</span>
-                  <button type="button" onclick="SuperrootModule.eliminarMateriaDocente(${docenteId}, ${m.id}, '${m.nombre_materia.replace(/'/g, "\\'")}')" title="Quitar esta materia del docente" style="color: #dc2626; font-weight: 800; cursor: pointer; border: none; background: #fee2e2; border-radius: 50%; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.85rem; line-height: 1;">&times;</button>
-                </span>
-              `).join('')}
-            </div>
-          `;
-        }
-
-        if (materiasGen.length < 5) {
-          materiasHtml += `
-            <div style="border-top: 1px dashed #cbd5e1; padding-top: 0.75rem; margin-top: 0.5rem;">
-              <div style="font-size: 0.78rem; font-weight: 700; color: var(--unermb-blue-dark); margin-bottom: 0.4rem; text-transform: uppercase;">
-                + Asignar Materia del Pensum Oficial al Docente:
-              </div>
-              <div id="materia-direct-cascade-slot"></div>
-              <button type="button" id="btn-asignar-materia-direct" class="btn btn-secondary btn-sm" style="margin-top: 0.6rem;">
-                <span>+ Guardar Materia en Perfil del Docente</span>
-              </button>
-            </div>
-          `;
-        } else {
-          materiasHtml += `
-            <div style="font-size: 0.78rem; color: var(--status-pending); font-weight: 600; padding-top: 0.3rem;">
-              Límite alcanzado: El docente ya tiene asignadas las 5 materias máximas permitidas por normativa.
-            </div>
-          `;
-        }
-
-        materiasHtml += `</div>`;
-        materiasContainer.innerHTML = materiasHtml;
-
-        // Renderizar fila de cascada para asignar materia directa
-        if (materiasGen.length < 5 && window.PensumCascade) {
-          let directSelectedMateriaId = null;
-          const directSlot = document.getElementById('materia-direct-cascade-slot');
-          if (directSlot) {
-            const alreadyIds = materiasGen.map(m => m.id);
-            const cascadeRow = window.PensumCascade.createCascadeRow({
-              rowIndex: 99,
-              selectedMateriaId: null,
-              alreadySelectedIds: alreadyIds,
-              canRemove: false,
-              onChange: (mId) => {
-                directSelectedMateriaId = mId;
-              }
-            });
-            directSlot.appendChild(cascadeRow);
-
-            const btnDirect = document.getElementById('btn-asignar-materia-direct');
-            if (btnDirect) {
-              btnDirect.addEventListener('click', async () => {
-                if (!directSelectedMateriaId) {
-                  showToast('Seleccione una materia mediante el selector en cascada.', 'warning');
-                  return;
-                }
-                await SuperrootModule.asignarMateriaDocente(docenteId, directSelectedMateriaId);
-              });
-            }
-          }
-        }
+        materiasContainer.innerHTML = '';
+        materiasContainer.style.display = 'none';
       }
 
-      // 2. Renderizar Cuadrícula Semanal (5 días x 5 bloques fijos)
+      // 2. Renderizar Cuadrícula Semanal Interactiva (5 días x 5 bloques fijos)
       let tableHtml = `
         <div class="schedule-table-container">
           <table class="schedule-table">
@@ -588,7 +508,9 @@ const SuperrootModule = {
           } else {
             tableHtml += `
               <td>
-                <div class="schedule-slot-empty">Disponible</div>
+                <div class="schedule-slot-empty" style="cursor: pointer;" onclick="SuperrootModule.seleccionarCeldaHorario('${dia}', ${bloque.numero})" title="Haga clic para asignar materia en ${dia} - Bloque ${bloque.numero}">
+                  + Disponible
+                </div>
               </td>
             `;
           }
@@ -600,7 +522,7 @@ const SuperrootModule = {
       tableHtml += `</tbody></table></div>`;
       tableContainer.innerHTML = tableHtml;
 
-      // 3. Renderizar Selector en Cascada para Asignar Nueva Clase
+      // 3. Renderizar Selector en Cascada para Asignar Nueva Clase Directamente
       this.renderFormularioAsignarHorario(cascadeContainer, docenteId, dias, bloques);
     } catch (err) {
       console.error('Error cargando detalle de horario:', err);
@@ -768,59 +690,20 @@ const SuperrootModule = {
     }
   },
 
-  // ----------------------------------------------------------------------------
-  // GENERADOR DE CÓDIGO QR OFICIAL
-  // ----------------------------------------------------------------------------
-  async loadQROficial() {
-    const qrContainer = document.getElementById('qr-official-display');
-    if (!qrContainer) return;
-
-    try {
-      const res = await this.fetchSecure('/api/superroot/generar-qr');
-      const data = await res.json();
-
-      if (data.success) {
-        this.qrData = data;
-        qrContainer.innerHTML = `
-          <div class="qr-official-showcase">
-            <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin-bottom: 0.75rem;">
-              <img src="/multimedia/uner.png" alt="UNERMB" style="height: 48px;">
-              <div style="height: 36px; width: 1px; background: #cbd5e1;"></div>
-              <img src="/multimedia/pnf.png" alt="PNF" style="height: 48px;">
-            </div>
-            
-            <h3 style="font-size: 1.1rem; color: var(--unermb-blue-dark); text-transform: uppercase;">
-              Universidad Nacional Experimental "Rafael María Baralt"
-            </h3>
-            <p style="font-size: 0.85rem; font-weight: 700; color: var(--unermb-blue-accent);">
-              PNF EN INFORMÁTICA - PUNTO OFICIAL DE ASISTENCIA DOCENTE
-            </p>
-
-            <img src="${data.qrDataURL}" alt="Código QR Institucional" class="qr-code-img">
-
-            <div style="font-size: 0.78rem; color: var(--text-secondary); background: #f8fafc; padding: 0.75rem; border-radius: var(--radius-md); border: 1px solid #e2e8f0; margin-top: 1rem;">
-              <div><strong>Seguridad Criptográfica:</strong> HMAC-SHA256 Token Oficial Activo</div>
-              <div><strong>Validez:</strong> Marcaje con Verificación Estricta de Horarios</div>
-            </div>
-
-            <div style="display: flex; justify-content: center; gap: 0.75rem; margin-top: 1.25rem;">
-              <button class="btn btn-primary btn-sm" onclick="window.print()">
-                <span>Imprimir Cartel Oficial</span>
-              </button>
-              <button class="btn btn-secondary btn-sm" onclick="SuperrootModule.loadQROficial()">
-                <span>Regenerar Token</span>
-              </button>
-            </div>
-          </div>
-        `;
-      }
-    } catch (err) {
-      qrContainer.innerHTML = `<p style="color: var(--status-danger);">Error generando QR: ${err.message}</p>`;
+  seleccionarCeldaHorario(dia, bloqueNumero) {
+    const diaSelect = document.getElementById('horario-dia-select');
+    const bloqueSelect = document.getElementById('horario-bloque-select');
+    if (diaSelect) diaSelect.value = dia;
+    if (bloqueSelect) bloqueSelect.value = String(bloqueNumero);
+    const formCard = document.getElementById('horario-cascade-selector-wrapper');
+    if (formCard) {
+      formCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
+    showToast(`Seleccionado: ${dia} - Bloque ${bloqueNumero}. Elija Trayecto, Trimestre y Materia para guardar.`, 'info');
   },
 
   // ----------------------------------------------------------------------------
-  // LOGS Y AUDITORÍA DE ASISTENCIA CON PUNTUALIDAD
+  // LOGS Y AUDITORÍA DE ASISTENCIA CON PUNTUALIDAD Y JUSTIFICATIVOS
   // ----------------------------------------------------------------------------
   async loadAsistenciasLogs() {
     const tableBody = document.getElementById('asistencias-table-body');
@@ -858,10 +741,21 @@ const SuperrootModule = {
           puntualidadBadge = `<span class="badge badge-sin-horario">SIN HORARIO</span>`;
         }
 
+        let justificativoBtn = '';
+        if (log.justificacion_estado === 'ENVIADA' || log.justificacion_estado === 'REVISADA' || log.justificacion_texto) {
+          justificativoBtn = `
+            <div style="margin-top: 0.35rem;">
+              <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.7rem; padding: 0.2rem 0.5rem; background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd;" onclick="SuperrootModule.verJustificativoDetalle(${log.id})">
+                Ver Justificativo
+              </button>
+            </div>
+          `;
+        }
+
         return `
           <tr>
             <td style="width: 48px;">
-              <img src="${log.foto_carnet_url}" alt="Docente" style="width: 38px; height: 46px; object-fit: cover; border-radius: 4px; border: 1px solid var(--unermb-blue-dark);" onerror="this.src='/multimedia/uner.png'">
+              <img src="${log.foto_carnet_url || '/multimedia/uner.png'}" alt="Docente" style="width: 38px; height: 46px; object-fit: cover; border-radius: 4px; border: 1px solid var(--unermb-blue-dark);" onerror="this.onerror=null; this.src='/multimedia/uner.png'">
             </td>
             <td>
               <strong>${log.nombre} ${log.apellido}</strong><br>
@@ -879,6 +773,7 @@ const SuperrootModule = {
               <span style="font-size: 0.72rem; color: var(--text-muted);">
                 ${log.materia_detectada ? log.materia_detectada : ''}
               </span>
+              ${justificativoBtn}
             </td>
             <td><span style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">${log.ip_address}</span></td>
           </tr>
@@ -889,6 +784,58 @@ const SuperrootModule = {
     }
   },
 
+  verJustificativoDetalle(asistenciaId) {
+    const log = (this.currentLogs || []).find(l => l.id === asistenciaId);
+    if (!log) return;
+
+    const modal = document.getElementById('modal-ver-justificativo');
+    const body = document.getElementById('modal-ver-justificativo-body');
+    if (!modal || !body) return;
+
+    const fechaHora = typeof formatVenezuelaDateTime === 'function'
+      ? `${formatVenezuelaDateTime(log.fecha_hora).date} ${formatVenezuelaDateTime(log.fecha_hora).time}`
+      : new Date(log.fecha_hora).toLocaleString();
+
+    body.innerHTML = `
+      <div style="background: #f8fafc; padding: 0.85rem; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 1rem;">
+        <div style="font-weight: 700; color: var(--unermb-blue-dark); font-size: 1rem;">${log.nombre} ${log.apellido}</div>
+        <div style="font-size: 0.8rem; color: var(--text-secondary);">C.I.: ${typeof formatCedula === 'function' ? formatCedula(log.cedula) : log.cedula} &bull; ${fechaHora}</div>
+        <div style="font-size: 0.8rem; color: #b45309; font-weight: 600; margin-top: 0.25rem;">
+          Materia: ${log.materia_detectada || 'Jornada Docente'} (${log.bloque_horario_detectado || 'Sin bloque'}) &bull; Retardo: +${log.minutos_retraso || 0} min
+        </div>
+      </div>
+      <div style="margin-bottom: 1rem;">
+        <div style="font-size: 0.78rem; font-weight: 700; color: var(--unermb-blue-dark); text-transform: uppercase; margin-bottom: 0.35rem;">
+          Motivo / Justificación Escrita:
+        </div>
+        <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0.85rem; font-size: 0.88rem; color: var(--text-primary); white-space: pre-wrap;">${log.justificacion_texto || 'Sin descripción de texto.'}</div>
+      </div>
+      ${log.justificacion_imagen_url ? `
+        <div style="margin-bottom: 1rem;">
+          <div style="font-size: 0.78rem; font-weight: 700; color: var(--unermb-blue-dark); text-transform: uppercase; margin-bottom: 0.35rem;">
+            Evidencia Fotográfica / Récipe Adjunto:
+          </div>
+          <div style="text-align: center; background: #f1f5f9; padding: 0.75rem; border-radius: 8px; border: 1px solid #cbd5e1;">
+            <img src="${log.justificacion_imagen_url}" alt="Evidencia de Justificativo" style="max-width: 100%; max-height: 360px; border-radius: 6px; object-fit: contain;">
+            <div style="margin-top: 0.5rem;">
+              <a href="${log.justificacion_imagen_url}" target="_blank" class="btn btn-secondary btn-sm">Abrir imagen en tamaño completo</a>
+            </div>
+          </div>
+        </div>
+      ` : ''}
+      <div style="text-align: right; margin-top: 1rem;">
+        <button type="button" class="btn btn-primary" onclick="SuperrootModule.cerrarModalVerJustificativo()">Cerrar</button>
+      </div>
+    `;
+
+    modal.style.display = 'flex';
+  },
+
+  cerrarModalVerJustificativo() {
+    const modal = document.getElementById('modal-ver-justificativo');
+    if (modal) modal.style.display = 'none';
+  },
+
   exportarLogsCSV() {
     if (!this.currentLogs || this.currentLogs.length === 0) {
       showToast('No hay datos disponibles para exportar.', 'warning');
@@ -896,10 +843,11 @@ const SuperrootModule = {
     }
 
     let csvContent = '\uFEFF';
-    csvContent += 'ID,Docente,Cedula,Email,Fecha_Hora,Tipo,Puntualidad,Minutos_Retraso,Materia,IP\n';
+    csvContent += 'ID,Docente,Cedula,Email,Fecha_Hora,Tipo,Puntualidad,Minutos_Retraso,Materia,Justificacion,IP\n';
 
     this.currentLogs.forEach(l => {
-      csvContent += `"${l.id}","${l.nombre} ${l.apellido}","${l.cedula}","${l.email}","${l.fecha_hora}","${l.tipo}","${l.puntualidad_estado || ''}","${l.minutos_retraso || 0}","${l.materia_detectada || ''}","${l.ip_address}"\n`;
+      const justif = (l.justificacion_texto || '').replace(/"/g, '""');
+      csvContent += `"${l.id}","${l.nombre} ${l.apellido}","${l.cedula}","${l.email}","${l.fecha_hora}","${l.tipo}","${l.puntualidad_estado || ''}","${l.minutos_retraso || 0}","${l.materia_detectada || ''}","${justif}","${l.ip_address}"\n`;
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -914,15 +862,32 @@ const SuperrootModule = {
   },
 
   // ----------------------------------------------------------------------------
-  // GESTIÓN Y VISUALIZACIÓN DE CÓDIGO QR OFICIAL INSTITUCIONAL
+  // GENERACIÓN Y ROTACIÓN AUTOMATIZADA DEL CÓDIGO QR DIARIO (Ciclo 24h)
   // ----------------------------------------------------------------------------
+  startDailyQrAutoRotation() {
+    if (this._qrAutoRotationTimer) clearInterval(this._qrAutoRotationTimer);
+    this._qrAutoRotationTimer = setInterval(() => {
+      const currentVeDate = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Caracas',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).format(new Date());
+      if (this.qrData && this.qrData.fecha_vigente && this.qrData.fecha_vigente !== currentVeDate) {
+        this.loadQROficial();
+      }
+    }, 30000);
+  },
+
   async loadQROficial() {
     const container = document.getElementById('qr-official-display');
     if (!container) return;
 
+    this.startDailyQrAutoRotation();
+
     container.innerHTML = `
       <div style="text-align: center; padding: 3rem; color: var(--text-muted);">
-        <p>Generando código QR oficial firmado institucionalmente...</p>
+        <p>Sincronizando Código QR Oficial del Día (Ciclo Automático 24h)...</p>
       </div>
     `;
 
@@ -933,14 +898,14 @@ const SuperrootModule = {
       if (!data.success) {
         container.innerHTML = `
           <div class="card" style="text-align: center; padding: 2rem; color: var(--status-danger);">
-            <p><strong>Error al obtener el Código QR:</strong> ${data.error || 'No se pudo generar el código institucional.'}</p>
+            <p><strong>Error al obtener el Código QR:</strong> ${data.error || 'No se pudo sincronizar el código institucional.'}</p>
           </div>
         `;
         return;
       }
 
       this.qrData = data;
-      const validoDate = data.valido_hasta ? new Date(data.valido_hasta).toLocaleDateString() : 'Vigente';
+      const fechaVigencia = data.fecha_vigente || new Date().toISOString().split('T')[0];
 
       container.innerHTML = `
         <div class="card" style="max-width: 620px; margin: 0 auto; text-align: center; padding: 2.25rem 2rem;">
@@ -949,30 +914,31 @@ const SuperrootModule = {
             <img src="/multimedia/pnf.png" alt="PNF" style="height: 48px; object-fit: contain;">
           </div>
           <h2 style="color: var(--unermb-blue-dark); font-size: 1.35rem; margin-bottom: 0.25rem;">UNERMB - PNF EN INFORMÁTICA</h2>
-          <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.5rem;">Control Institucional de Asistencia y Puntualidad Docente</p>
+          <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.5rem;">Código QR Diario Automatizado de Asistencia y Puntualidad Docente</p>
 
           <div style="display: inline-block; padding: 1.25rem; background: #ffffff; border-radius: var(--radius-lg); border: 2px solid var(--unermb-blue-dark); box-shadow: 0 12px 30px -10px rgba(0, 43, 102, 0.2); margin-bottom: 1.5rem;">
-            <img src="${data.qrDataUrl}" alt="Código QR Oficial" id="qr-image-render" style="width: 280px; height: 280px; display: block; border-radius: 6px; margin: 0 auto;">
+            <img src="${data.qrDataUrl}" alt="Código QR Oficial Diario" id="qr-image-render" style="width: 280px; height: 280px; display: block; border-radius: 6px; margin: 0 auto;">
           </div>
 
-          <div style="display: flex; gap: 0.5rem; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 1.5rem;">
+          <div style="display: flex; gap: 0.5rem; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
             <span class="badge" style="background: #eff6ff; color: var(--unermb-blue-dark); font-family: monospace; font-size: 0.82rem; padding: 0.4rem 0.75rem; border: 1px solid #bfdbfe;">
-              Token: ${data.token}
+              Token Diario: ${data.token}
             </span>
             <span class="badge badge-activo" style="padding: 0.4rem 0.75rem;">
-              Activo hasta: ${validoDate}
+              Vigencia: ${fechaVigencia} (00:00:00 a 23:59:59 HLV)
             </span>
           </div>
+
+          <p style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+            Rotación automática diaria a las 00:00:00 (Hora Legal de Venezuela). Los códigos de fechas anteriores son rechazados automáticamente.
+          </p>
 
           <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
             <button class="btn btn-primary" onclick="SuperrootModule.descargarQRPNG()">
               <span>Descargar Imagen (PNG)</span>
             </button>
             <button class="btn btn-secondary" onclick="SuperrootModule.imprimirQR()">
-              <span>Imprimir Cartel</span>
-            </button>
-            <button class="btn btn-danger btn-sm" onclick="SuperrootModule.renovarQR()" title="Generar un nuevo token y revocar el anterior">
-              <span>Renovar Token QR</span>
+              <span>Imprimir Cartel del Día</span>
             </button>
           </div>
         </div>

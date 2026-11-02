@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">UNERMB Asistencia</string>
+    <string name="app_full_title">Sistema de Control de Asistencia Docente - PNF Informática UNERMB</string>
+    <string name="channel_docente_name">Avisos de Clases (Docente)</string>
+    <string name="channel_docente_desc">Notificaciones previas a clases (20 min) y alertas de puntualidad</string>
+    <string name="channel_superroot_name">Control de Asistencia (Superroot)</string>
+    <string name="channel_superroot_desc">Alertas en tiempo real de marcajes realizados por los docentes</string>
+</resources>
+

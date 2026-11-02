@@ -2,12 +2,17 @@ const express = require('express');
 const router = express.Router();
 const docenteController = require('../controllers/docenteController');
 const { verifyToken, requireDocente } = require('../middlewares/auth');
+const { handleJustificativoUpload } = require('../middlewares/upload');
 
 // Todas las rutas requieren autenticación y rol DOCENTE o SUPERROOT
 router.use(verifyToken, requireDocente);
 
 // Marcaje de Asistencia vía Código QR con Verificación de Horario
 router.post('/marcar-asistencia', docenteController.registrarMarcajeQR);
+
+// Envío opcional de justificativo por retardo (texto + evidencia fotográfica opcional)
+router.post('/asistencias/:id/justificar', handleJustificativoUpload, docenteController.justificarRetardoAsistencia);
+router.post('/justificar-retardo', handleJustificativoUpload, docenteController.justificarRetardoAsistencia);
 
 // Historial personal de marcajes con estado de puntualidad
 router.get('/historial', docenteController.getHistorialPersonal);

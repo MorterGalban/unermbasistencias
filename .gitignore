@@ -31,4 +31,20 @@ Thumbs.db
 # Archivos subidos por usuarios (uploads)
 uploads/carnet/*
 !uploads/carnet/.gitkeep
+uploads/justificativos/*
+!uploads/justificativos/.gitkeep
+
+# Android y Gradle (compilados y cachés)
+.gradle/
+**/build/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.iml
+.idea/
+*.hprof
+hs_err_pid*
+
+
 

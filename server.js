@@ -7,10 +7,14 @@ const fs = require('fs');
 const cors = require('cors');
 const helmet = require('helmet');
 
-// Garantizar existencia de directorio de almacenamiento seguro de fotos tipo carnet
+// Garantizar existencia de directorios de almacenamiento seguro de fotos tipo carnet y justificativos
 const uploadCarnetDir = path.join(__dirname, 'uploads', 'carnet');
+const uploadJustificativosDir = path.join(__dirname, 'uploads', 'justificativos');
 if (!fs.existsSync(uploadCarnetDir)) {
   fs.mkdirSync(uploadCarnetDir, { recursive: true });
+}
+if (!fs.existsSync(uploadJustificativosDir)) {
+  fs.mkdirSync(uploadJustificativosDir, { recursive: true });
 }
 
 // Inicializador de base de datos MySQL relacional persistente
@@ -24,11 +28,12 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 
-// Configuración de Seguridad HTTP con Helmet (permisivo en desarrollo local)
+// Configuración de Seguridad HTTP con Helmet (permisivo con recursos estáticos cross-origin para App Móvil y Web)
 app.use(
   helmet({
     contentSecurityPolicy: false,
-    crossOriginEmbedderPolicy: false
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' }
   })
 );
 

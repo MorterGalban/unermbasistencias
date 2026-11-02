@@ -731,10 +731,60 @@
       </div>
       <div class="modal-body">
         <div id="horario-docente-info"></div>
-        <div id="horario-docente-materias-wrapper"></div>
         <div id="horario-docente-table-wrapper"></div>
         <div id="horario-cascade-selector-wrapper"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL: JUSTIFICACIÓN OPCIONAL POR RETARDO DOCENTE (DOCENTE)
+       ======================================================================== -->
+  <div id="modal-justificar-retardo" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Justificación Opcional por Retardo</h3>
+        <button type="button" class="btn-close-modal" onclick="DocenteModule.cerrarModalJustificacion()" title="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="justificar-retardo-resumen" style="background: #fffbeb; border-left: 4px solid #d97706; padding: 0.85rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.85rem; color: #92400e;"></div>
+        <p style="font-size: 0.84rem; color: var(--text-secondary); margin-bottom: 1rem;">
+          Su entrada ya fue registrada. Si lo desea, puede adjuntar una justificación (motivo escrito y/o foto de récipe o constancia) para la Coordinación, o continuar sin justificar.
+        </p>
+        <form id="form-justificar-retardo">
+          <input type="hidden" id="justificar-asistencia-id" value="">
+          <div class="form-group">
+            <label for="justificar-motivo-input" class="form-label">Motivo o Explicación del Retardo</label>
+            <textarea id="justificar-motivo-input" class="form-input" rows="3" placeholder="Ej. Retraso en transporte público, consulta médica previa, etc."></textarea>
+          </div>
+          <div class="form-group">
+            <label for="justificar-evidencia-input" class="form-label">Imagen de Respaldo / Récipe Médico (Opcional)</label>
+            <input type="file" id="justificar-evidencia-input" class="form-input" accept="image/jpeg,image/png,image/webp">
+            <div class="input-hint">Formatos permitidos: JPG, PNG o WEBP (Máx. 5 MB)</div>
+          </div>
+          <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem; flex-wrap: wrap;">
+            <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="DocenteModule.cerrarModalJustificacion()">
+              Continuar sin justificar
+            </button>
+            <button type="submit" id="btn-submit-justificativo" class="btn btn-primary" style="flex: 1;">
+              Enviar Justificativo
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL: VISUALIZAR JUSTIFICATIVO DE RETARDO (SUPERROOT)
+       ======================================================================== -->
+  <div id="modal-ver-justificativo" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Detalle de Justificativo por Retardo</h3>
+        <button type="button" class="btn-close-modal" onclick="SuperrootModule.cerrarModalVerJustificativo()" title="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-ver-justificativo-body"></div>
     </div>
   </div>
 

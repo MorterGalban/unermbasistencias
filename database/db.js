@@ -169,6 +169,24 @@ async function initDatabase(retries = 5, delayMs = 3000) {
         }
         console.log('[DB] Tablas relacionales verificadas / creadas exitosamente.');
 
+        // 1.B Migración segura de columnas para el Módulo de Justificación de Retardos en bases de datos existentes
+        const alterStatements = [
+          "ALTER TABLE asistencias ADD COLUMN justificacion_texto TEXT NULL",
+          "ALTER TABLE asistencias ADD COLUMN justificacion_imagen_url VARCHAR(500) NULL",
+          "ALTER TABLE asistencias ADD COLUMN justificacion_fecha DATETIME NULL",
+          "ALTER TABLE asistencias ADD COLUMN justificacion_estado ENUM('SIN_JUSTIFICAR', 'ENVIADA', 'REVISADA') DEFAULT 'SIN_JUSTIFICAR'"
+        ];
+        for (const alterSql of alterStatements) {
+          try {
+            await connection.query(alterSql);
+          } catch (alterErr) {
+            // Ignorar error 1060 (Duplicate column name) si la columna ya existe
+            if (alterErr.errno !== 1060 && !String(alterErr.message).includes('Duplicate column')) {
+              console.warn('[DB] Nota en migración de columna:', alterErr.message);
+            }
+          }
+        }
+
         // 2. Sembrado estricto de materias según pensum2026.txt
         const [materiaRows] = await connection.query('SELECT COUNT(*) as count FROM materias');
         const materiasOficiales = getFlattenedMaterias();
