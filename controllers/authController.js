@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../database/db');
 const { JWT_SECRET } = require('../middlewares/auth');
+const { normalizeMediaUrl } = require('../middlewares/upload');
 const { PENSUM_OFICIAL, BLOQUES_HORARIOS, DIAS_SEMANA } = require('../database/pensumData');
 
 /**
@@ -251,7 +252,7 @@ const login = async (req, res) => {
         apellido: user.apellido,
         cedula: user.cedula,
         email: user.email,
-        foto_carnet_url: user.foto_carnet_url,
+        foto_carnet_url: normalizeMediaUrl(user.foto_carnet_url, req),
         rol: user.rol,
         estado: user.estado,
         materias
@@ -286,10 +287,12 @@ const getMe = async (req, res) => {
       [req.user.id]
     );
 
+    const profileData = freshUser || req.user;
     res.json({
       success: true,
       usuario: {
-        ...(freshUser || req.user),
+        ...profileData,
+        foto_carnet_url: normalizeMediaUrl(profileData.foto_carnet_url, req),
         materias
       }
     });

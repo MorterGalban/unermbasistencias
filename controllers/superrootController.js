@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const QRCode = require('qrcode');
 const db = require('../database/db');
+const { normalizeMediaUrl } = require('../middlewares/upload');
 const { BLOQUES_HORARIOS, DIAS_SEMANA, PENSUM_ESTRUCTURA } = require('../database/pensumData');
 
 const HMAC_SECRET = process.env.QR_HMAC_SECRET || 'UNERMB_PNF_HMAC_SECRET_KEY_ASISTENCIA_2026';
@@ -105,6 +106,7 @@ const getSolicitudesPendientes = async (req, res) => {
 
         return {
           ...docente,
+          foto_carnet_url: normalizeMediaUrl(docente.foto_carnet_url, req),
           materias
         };
       })
@@ -238,6 +240,7 @@ const getDocentes = async (req, res) => {
 
         return {
           ...doc,
+          foto_carnet_url: normalizeMediaUrl(doc.foto_carnet_url, req),
           materias,
           total_bloques_horario: horariosCount.total_bloques || 0
         };
@@ -390,7 +393,12 @@ const getSystemLogs = async (req, res) => {
 
     sql += ` ORDER BY l.created_at DESC LIMIT 300`;
 
-    const logs = await db.query(sql, params);
+    const logsRaw = await db.query(sql, params);
+    const logs = logsRaw.map(l => ({
+      ...l,
+      foto_carnet_url: normalizeMediaUrl(l.foto_carnet_url, req),
+      justificacion_imagen_url: normalizeMediaUrl(l.justificacion_imagen_url, req)
+    }));
 
     res.json({
       success: true,
@@ -421,7 +429,10 @@ const getDocenteHorario = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Docente no encontrado.' });
     }
 
-    const docente = docentes[0];
+    const docente = {
+      ...docentes[0],
+      foto_carnet_url: normalizeMediaUrl(docentes[0].foto_carnet_url, req)
+    };
 
     // Materias generales del docente
     const materiasGenerales = await db.query(`
@@ -517,7 +528,10 @@ const asignarDocenteHorario = async (req, res) => {
     if (docentes.length === 0) {
       return res.status(404).json({ success: false, error: 'Docente no encontrado.' });
     }
-    const docente = docentes[0];
+    const docente = {
+      ...docentes[0],
+      foto_carnet_url: normalizeMediaUrl(docentes[0].foto_carnet_url, req)
+    };
 
     // 2. Verificar existencia de la materia (estricta del pensum)
     const materias = await db.query(
@@ -656,7 +670,10 @@ const asignarMateriaDocente = async (req, res) => {
     if (docentes.length === 0) {
       return res.status(404).json({ success: false, error: 'Docente no encontrado.' });
     }
-    const docente = docentes[0];
+    const docente = {
+      ...docentes[0],
+      foto_carnet_url: normalizeMediaUrl(docentes[0].foto_carnet_url, req)
+    };
 
     const materias = await db.query('SELECT id, nombre_materia, codigo, trayecto, trimestre FROM materias WHERE id = ?', [mId]);
     if (materias.length === 0) {
@@ -714,7 +731,10 @@ const eliminarMateriaDocente = async (req, res) => {
     if (docentes.length === 0) {
       return res.status(404).json({ success: false, error: 'Docente no encontrado.' });
     }
-    const docente = docentes[0];
+    const docente = {
+      ...docentes[0],
+      foto_carnet_url: normalizeMediaUrl(docentes[0].foto_carnet_url, req)
+    };
 
     const materiaRows = await db.query('SELECT nombre_materia FROM materias WHERE id = ?', [mId]);
     const nombreMateria = materiaRows.length > 0 ? materiaRows[0].nombre_materia : `ID ${mId}`;
@@ -885,7 +905,12 @@ const getAsistenciasLogs = async (req, res) => {
 
     sql += ` ORDER BY a.fecha_hora DESC LIMIT 250`;
 
-    const logs = await db.query(sql, params);
+    const logsRaw = await db.query(sql, params);
+    const logs = logsRaw.map(l => ({
+      ...l,
+      foto_carnet_url: normalizeMediaUrl(l.foto_carnet_url, req),
+      justificacion_imagen_url: normalizeMediaUrl(l.justificacion_imagen_url, req)
+    }));
 
     // Contadores del filtro
     const totalEntradas = logs.filter(l => l.tipo === 'ENTRADA').length;
@@ -1007,9 +1032,18 @@ const getNotificacionesEventos = async (req, res) => {
     res.json({
       success: true,
       fecha_vigente: fechaHoy,
-      solicitudesPendientes,
-      marcajesRecientes: marcajesHoy,
-      justificacionesRecientes,
+      solicitudesPendientes: solicitudesPendientes.map(s => ({
+        ...s,
+        foto_carnet_url: normalizeMediaUrl(s.foto_carnet_url, req)
+      })),
+      marcajesRecientes: marcajesHoy.map(m => ({
+        ...m,
+        justificacion_imagen_url: normalizeMediaUrl(m.justificacion_imagen_url, req)
+      })),
+      justificacionesRecientes: justificacionesRecientes.map(j => ({
+        ...j,
+        justificacion_imagen_url: normalizeMediaUrl(j.justificacion_imagen_url, req)
+      })),
       alertasInasistencia
     });
   } catch (err) {

@@ -9,6 +9,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.AndroidEntryPoint
+import ve.edu.unermb.asistencia.service.NotificationHelper
+import ve.edu.unermb.asistencia.service.RealtimeNotificationService
 import ve.edu.unermb.asistencia.ui.navigation.AppNavGraph
 import ve.edu.unermb.asistencia.ui.theme.UnermbTheme
 
@@ -18,11 +20,13 @@ class MainActivity : ComponentActivity() {
     private val requestNotificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { _ ->
-        // Permiso de notificaciones gestionado
+        RealtimeNotificationService.start(this)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        NotificationHelper.createNotificationChannels(this)
 
         // Solicitar permiso de Notificaciones en Android 13+ (API 33+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -34,6 +38,9 @@ class MainActivity : ComponentActivity() {
                 requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
+
+        // Iniciar motor persistente de notificaciones en tiempo real (Heads-Up + Alarmas Exactas)
+        RealtimeNotificationService.start(this)
 
         setContent {
             UnermbTheme {

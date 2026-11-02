@@ -20,6 +20,19 @@ function resolveApiBase() {
 const API_BASE = resolveApiBase();
 window.API_BASE = API_BASE;
 
+// Normalizador universal de URLs de fotografía (soporta Base64 data:image/..., URLs absolutas HTTPS y rutas estáticas)
+function resolvePhotoUrl(rawUrl, fallback = '/multimedia/uner.png') {
+  if (!rawUrl || typeof rawUrl !== 'string') return fallback;
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return fallback;
+  if (trimmed.startsWith('data:image/') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  const cleanRel = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return API_BASE ? `${API_BASE}${cleanRel}` : cleanRel;
+}
+window.resolvePhotoUrl = resolvePhotoUrl;
+
 const AppState = {
   token: localStorage.getItem('unermb_token') || null,
   user: JSON.parse(localStorage.getItem('unermb_user') || 'null'),
@@ -124,10 +137,10 @@ function updateHeaderNav() {
 
   if (AppState.token && AppState.user) {
     const rolText = AppState.user.rol === 'SUPERROOT' ? 'SUPERROOT (ADMIN)' : 'DOCENTE PNF';
-    const photoUrl = AppState.user.foto_carnet_url ? (AppState.user.foto_carnet_url.startsWith('http') ? AppState.user.foto_carnet_url : (API_BASE + AppState.user.foto_carnet_url)) : 'multimedia/uner.png';
+    const photoUrl = resolvePhotoUrl(AppState.user.foto_carnet_url, '/multimedia/uner.png');
     userHeaderContainer.innerHTML = `
       <div class="user-badge-header">
-        <img src="${photoUrl}" alt="Avatar" class="user-avatar-mini" onerror="this.src='multimedia/uner.png'">
+        <img src="${photoUrl}" alt="Avatar" class="user-avatar-mini" onerror="this.onerror=null; this.src='/multimedia/uner.png'">
         <div style="display: flex; flex-direction: column; text-align: left;">
           <span style="font-size: 0.78rem; font-weight: 700;">${AppState.user.nombre} ${AppState.user.apellido}</span>
           <span style="font-size: 0.65rem; color: #93c5fd;">${rolText}</span>

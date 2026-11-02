@@ -73,6 +73,68 @@ const uploadJustificativo = multer({
   }
 }).single('evidencia');
 
+// Convierte un archivo subido por Multer en Data URI Base64 persistente para MySQL (inmune al sistema efímero de Railway)
+function attachBase64DataUri(file) {
+  if (!file || !file.path) return;
+  try {
+    if (fs.existsSync(file.path)) {
+      const buffer = fs.readFileSync(file.path);
+      const ext = path.extname(file.originalname || file.filename || '').toLowerCase();
+      let mime = file.mimetype;
+      if (!mime || !mime.startsWith('image/')) {
+        mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+      }
+      file.base64DataUri = `data:${mime};base64,${buffer.toString('base64')}`;
+    }
+  } catch (err) {
+    console.warn('[UPLOAD] Advertencia convirtiendo imagen a Base64:', err.message);
+  }
+}
+
+/**
+ * Normaliza cualquier valor de foto_carnet_url o justificacion_imagen_url almacenado en BD
+ * para garantizar que la API SIEMPRE devuelva un Data URI Base64 ("data:image/jpeg;base64,...")
+ * o una URL absoluta ("https://..."), nunca una ruta relativa suelta ("/uploads/...").
+ */
+function normalizeMediaUrl(rawUrl, req = null) {
+  if (!rawUrl || typeof rawUrl !== 'string') return null;
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return null;
+
+  // 1. Si ya es un Data URI Base64 o una URL absoluta HTTP/HTTPS, devolver intacto
+  if (trimmed.startsWith('data:image/') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+
+  // 2. Si es una ruta relativa (/uploads/... o /multimedia/...), intentar convertir desde disco a Base64 persistente
+  const cleanRel = trimmed.replace(/^\//, '');
+  const localAbsPath = path.join(__dirname, '..', cleanRel);
+  try {
+    if (fs.existsSync(localAbsPath) && fs.statSync(localAbsPath).isFile()) {
+      const ext = path.extname(localAbsPath).toLowerCase();
+      const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+      const base64 = fs.readFileSync(localAbsPath).toString('base64');
+      return `data:${mime};base64,${base64}`;
+    }
+  } catch (e) {
+    // Continuar al fallback de URL absoluta
+  }
+
+  // 3. Construir URL absoluta con protocolo HTTPS en Railway o el host activo del request
+  let baseUrl = process.env.PUBLIC_BASE_URL || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '');
+  if (!baseUrl && req) {
+    const forwardedProto = req.headers['x-forwarded-proto'] ? String(req.headers['x-forwarded-proto']).split(',')[0].trim() : null;
+    const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
+    const isCloud = host.includes('railway.app') || host.includes('rlwy.net') || (!host.includes('localhost') && !host.startsWith('127.0.0.1') && !host.startsWith('192.168.'));
+    const proto = forwardedProto || (isCloud ? 'https' : (req.protocol || 'http'));
+    baseUrl = `${proto}://${host}`;
+  }
+  if (!baseUrl) {
+    baseUrl = 'https://unermbasistencias-production.up.railway.app';
+  }
+  return `${baseUrl.replace(/\/$/, '')}/${cleanRel}`;
+}
+
 // Middleware envoltorio para captura de errores controlados
 const handleCarnetUpload = (req, res, next) => {
   uploadCarnet(req, res, (err) => {
@@ -92,6 +154,9 @@ const handleCarnetUpload = (req, res, next) => {
         success: false,
         error: err.message || 'Error en la validación del archivo de imagen.'
       });
+    }
+    if (req.file) {
+      attachBase64DataUri(req.file);
     }
     next();
   });
@@ -117,11 +182,15 @@ const handleJustificativoUpload = (req, res, next) => {
         error: err.message || 'Error en la validación del archivo de evidencia.'
       });
     }
+    if (req.file) {
+      attachBase64DataUri(req.file);
+    }
     next();
   });
 };
 
 module.exports = {
   handleCarnetUpload,
-  handleJustificativoUpload
+  handleJustificativoUpload,
+  normalizeMediaUrl
 };

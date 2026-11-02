@@ -21,9 +21,12 @@ class DataStoreManager @Inject constructor(
 ) {
     private val dataStore = context.dataStore
 
-    // Cache en memoria para acceso sincrónico rápido desde OkHttp AuthInterceptor
+    // Cache en memoria para acceso sincrónico rápido desde OkHttp AuthInterceptor y ViewModels
     @Volatile
     private var cachedToken: String? = null
+
+    @Volatile
+    private var cachedBaseUrl: String = Constants.DEFAULT_BASE_URL
 
     companion object {
         val KEY_JWT = stringPreferencesKey(Constants.KEY_JWT_TOKEN)
@@ -54,7 +57,9 @@ class DataStoreManager @Inject constructor(
     }
 
     val baseUrlFlow: Flow<String> = dataStore.data.map { prefs ->
-        prefs[KEY_BASE_URL] ?: Constants.DEFAULT_BASE_URL
+        val url = prefs[KEY_BASE_URL] ?: Constants.DEFAULT_BASE_URL
+        cachedBaseUrl = url
+        url
     }
 
     val userProfileFlow: Flow<UserDto?> = dataStore.data.map { prefs ->
@@ -106,11 +111,16 @@ class DataStoreManager @Inject constructor(
         return cachedToken
     }
 
+    fun getCachedBaseUrl(): String = cachedBaseUrl
+
     suspend fun getBaseUrl(): String {
-        return dataStore.data.firstOrNull()?.get(KEY_BASE_URL) ?: Constants.DEFAULT_BASE_URL
+        val url = dataStore.data.firstOrNull()?.get(KEY_BASE_URL) ?: Constants.DEFAULT_BASE_URL
+        cachedBaseUrl = url
+        return url
     }
 
     suspend fun setBaseUrl(url: String) {
+        cachedBaseUrl = url
         dataStore.edit { prefs ->
             prefs[KEY_BASE_URL] = url
         }

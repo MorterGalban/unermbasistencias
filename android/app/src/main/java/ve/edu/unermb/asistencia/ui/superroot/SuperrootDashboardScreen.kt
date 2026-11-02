@@ -24,6 +24,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import kotlinx.coroutines.flow.collectLatest
+import ve.edu.unermb.asistencia.core.AdaptiveEvidenceImage
 import ve.edu.unermb.asistencia.core.DateTimeUtils
 import ve.edu.unermb.asistencia.core.DocenteAvatar
 import ve.edu.unermb.asistencia.core.ImageUtils
@@ -1476,8 +1477,9 @@ fun AuditoriaTab(
                             color = TextSecondary,
                             fontWeight = FontWeight.Bold
                         )
-                        AsyncImage(
-                            model = fullEvidenciaUrl,
+                        AdaptiveEvidenceImage(
+                            rawUrl = log.justificacion_imagen_url,
+                            baseUrl = baseUrl,
                             contentDescription = "Evidencia de Justificativo",
                             modifier = Modifier
                                 .fillMaxWidth()

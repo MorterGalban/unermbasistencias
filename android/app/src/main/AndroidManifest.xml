@@ -15,10 +15,14 @@
         android:name="android.hardware.camera.autofocus"
         android:required="false" />
 
-    <!-- Notificaciones Push y Alertas (Android 13+ Tiramisu) -->
+    <!-- Notificaciones Push, Banners Flotantes Heads-Up y Servicio Persistente en Tiempo Real -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
-    <!-- Alarmas Exactas para recordatorio preventivo 20 minutos antes de clase -->
+    <!-- Alarmas Exactas a nivel de sistema operativo (10 min antes y 10 min después de clase) -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -63,7 +67,23 @@
             </intent-filter>
         </activity>
 
-        <!-- Receptor de Alarmas Exactas para Notificaciones de Clases (20 min antes) -->
+        <!-- Servicio Persistente de Notificaciones en Tiempo Real con Railway -->
+        <service
+            android:name=".service.RealtimeNotificationService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Receptor de Acción Rápida "Marcar como leído" en Banners Heads-Up -->
+        <receiver
+            android:name=".service.NotificationActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="ve.edu.unermb.asistencia.ACTION_MARK_AS_READ" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Receptor de Alarmas Exactas para Notificaciones de Clases (10 min antes y +10 min retardo) -->
         <receiver
             android:name=".service.ClassAlarmReceiver"
             android:exported="false">

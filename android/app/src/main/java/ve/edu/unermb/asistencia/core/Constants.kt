@@ -10,9 +10,10 @@ object Constants {
     const val DEFAULT_BASE_URL = "https://unermbasistencias-production.up.railway.app/"
     const val EMULATOR_BASE_URL = "http://10.0.2.2:3000/"
 
-    // Notificaciones
-    const val CHANNEL_ID_DOCENTE = "unermb_canal_docente"
-    const val CHANNEL_ID_SUPERROOT = "unermb_canal_superroot"
+    // Notificaciones Emergentes (Heads-Up v2 sin caché de baja prioridad)
+    const val CHANNEL_ID_DOCENTE = "unermb_alertas_emergentes_v2"
+    const val CHANNEL_ID_SUPERROOT = "unermb_coordinacion_emergentes_v2"
+    const val CHANNEL_ID_FOREGROUND_SYNC = "unermb_realtime_daemon_v2"
 
     // Claves de DataStore de sesión
     const val PREFS_NAME = "unermb_asistencias_prefs"

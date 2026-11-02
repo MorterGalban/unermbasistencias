@@ -1,15 +1,31 @@
 package ve.edu.unermb.asistencia.service
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.Rect
+import android.media.AudioAttributes
+import android.media.AudioManager
 import android.media.RingtoneManager
+import android.media.ToneGenerator
 import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.Person
+import androidx.core.graphics.drawable.IconCompat
 import ve.edu.unermb.asistencia.MainActivity
 import ve.edu.unermb.asistencia.R
 import ve.edu.unermb.asistencia.core.Constants
@@ -20,6 +36,9 @@ object NotificationHelper {
     private const val TRACKING_PREFS = "unermb_notification_tracking"
     private const val KEY_LAST_ENTRADA_DATE = "last_entrada_date_ve"
     private const val KEY_ACTIVE_ROLE = "active_session_role"
+
+    private val VIBRATION_PATTERN_HEADS_UP = longArrayOf(0, 600, 150, 600, 150, 800)
+    private var cachedCircularLogo: Bitmap? = null
 
     fun setSessionRole(context: Context, role: String?) {
         context.getSharedPreferences(TRACKING_PREFS, Context.MODE_PRIVATE)
@@ -62,39 +81,227 @@ object NotificationHelper {
             .apply()
     }
 
+    /**
+     * Genera y almacena en caché el avatar circular grande (largeIcon) con el logo oficial de la UNERMB
+     */
+    fun getUnermbCircularLargeIcon(context: Context): Bitmap? {
+        if (cachedCircularLogo != null) return cachedCircularLogo
+        return try {
+            val raw = BitmapFactory.decodeResource(context.resources, R.drawable.ic_unermb_logo) ?: return null
+            val size = 192
+            val scaled = Bitmap.createScaledBitmap(raw, size, size, true)
+            val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(output)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+            val rect = Rect(0, 0, size, size)
+
+            // Fondo circular blanco puro para resaltar el emblema oficial UNERMB
+            paint.color = Color.WHITE
+            canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+
+            paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
+            canvas.drawBitmap(scaled, rect, rect, paint)
+            cachedCircularLogo = output
+            output
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     *Amplificación sonora a 0 dB (máxima ganancia en canal de Alarma/Notificación prioritaria) + vibración inmediata
+     */
+    private fun triggerHighGainAudioAndVibrationBoost(context: Context) {
+        try {
+            // 1. Vibración inmediata de alta intensidad para forzar despliegue visual y físico
+            val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                vm?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            }
+            if (vibrator?.hasVibrator() == true) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val amplitudes = intArrayOf(0, 255, 0, 255, 0, 255)
+                    vibrator.vibrate(VibrationEffect.createWaveform(VIBRATION_PATTERN_HEADS_UP, amplitudes, -1))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(VIBRATION_PATTERN_HEADS_UP, -1)
+                }
+            }
+        } catch (_: Exception) {}
+
+        try {
+            // 2. Pulso acústico normalizado a 0 dB (MAX_VOLUME = 100) sobre STREAM_ALARM
+            val toneGen = ToneGenerator(AudioManager.STREAM_ALARM, ToneGenerator.MAX_VOLUME)
+            toneGen.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 450)
+        } catch (_: Exception) {}
+    }
+
     fun createNotificationChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-            // Canal 1: Avisos Temporizados de Clases (Exclusivo Rol DOCENTE)
+            // Purgar canales antiguos en caché para evitar bloqueo de Heads-Up por configuraciones previas
+            try {
+                notificationManager.deleteNotificationChannel("unermb_canal_docente")
+                notificationManager.deleteNotificationChannel("unermb_canal_superroot")
+            } catch (_: Exception) {}
+
+            val alarmSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+
+            val highGainAudioAttributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
+                .build()
+
+            // Canal 1 (v2): Alertas Emergentes Heads-Up de Clases (Exclusivo Rol DOCENTE)
             val docenteChannel = NotificationChannel(
                 Constants.CHANNEL_ID_DOCENTE,
                 context.getString(R.string.channel_docente_name),
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = context.getString(R.string.channel_docente_desc)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 enableLights(true)
                 lightColor = Color.BLUE
                 enableVibration(true)
-                vibrationPattern = longArrayOf(0, 500, 200, 500)
+                vibrationPattern = VIBRATION_PATTERN_HEADS_UP
+                setBypassDnd(true)
+                setShowBadge(true)
+                setSound(alarmSoundUri, highGainAudioAttributes)
             }
 
-            // Canal 2: Eventos Operativos y Administrativos (Exclusivo Rol SUPERROOT)
+            // Canal 2 (v2): Alertas Emergentes Heads-Up de Coordinación (Exclusivo Rol SUPERROOT)
             val superrootChannel = NotificationChannel(
                 Constants.CHANNEL_ID_SUPERROOT,
                 context.getString(R.string.channel_superroot_name),
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = context.getString(R.string.channel_superroot_desc)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 enableLights(true)
                 lightColor = Color.CYAN
                 enableVibration(true)
-                vibrationPattern = longArrayOf(0, 300, 150, 300)
+                vibrationPattern = VIBRATION_PATTERN_HEADS_UP
+                setBypassDnd(true)
+                setShowBadge(true)
+                setSound(alarmSoundUri, highGainAudioAttributes)
+            }
+
+            // Canal 3: Demonio Silencioso de Sincronización en Tiempo Real 24/7
+            val syncDaemonChannel = NotificationChannel(
+                Constants.CHANNEL_ID_FOREGROUND_SYNC,
+                "Sincronización en Tiempo Real UNERMB",
+                NotificationManager.IMPORTANCE_MIN
+            ).apply {
+                description = "Mantiene activa la recepción instantánea de notificaciones desde Railway."
+                setShowBadge(false)
+                enableVibration(false)
+                setSound(null, null)
             }
 
             notificationManager.createNotificationChannel(docenteChannel)
             notificationManager.createNotificationChannel(superrootChannel)
+            notificationManager.createNotificationChannel(syncDaemonChannel)
         }
+    }
+
+    /**
+     * Constructor centralizado de Banner Flotante Superior (Heads-Up Notification)
+     * con estilo de tarjeta desplegada de mensajería (MessagingStyle + BigTextStyle),
+     * logo oficial de la UNERMB en smallIcon y largeIcon circular, hora actual y botón "Marcar como leído".
+     */
+    private fun dispatchHeadsUpBanner(
+        context: Context,
+        channelId: String,
+        notificationId: Int,
+        senderTitle: String,
+        shortText: String,
+        expandedBody: String,
+        accentColor: Int = Color.parseColor("#002147")
+    ) {
+        createNotificationChannels(context)
+
+        val openAppIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val contentPendingIntent = PendingIntent.getActivity(
+            context,
+            notificationId,
+            openAppIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val fullScreenPendingIntent = PendingIntent.getActivity(
+            context,
+            notificationId + 70000,
+            openAppIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val markReadIntent = Intent(context, NotificationActionReceiver::class.java).apply {
+            action = NotificationActionReceiver.ACTION_MARK_AS_READ
+            putExtra(NotificationActionReceiver.EXTRA_NOTIFICATION_ID, notificationId)
+        }
+        val markReadPendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationId + 90000,
+            markReadIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val largeLogoBitmap = getUnermbCircularLargeIcon(context)
+        val personBuilder = Person.Builder()
+            .setName(senderTitle)
+            .setImportant(true)
+        if (largeLogoBitmap != null) {
+            personBuilder.setIcon(IconCompat.createWithBitmap(largeLogoBitmap))
+        }
+        val senderPerson = personBuilder.build()
+
+        val nowMillis = System.currentTimeMillis()
+        val messagingStyle = NotificationCompat.MessagingStyle(senderPerson)
+            .setConversationTitle("UNERMB • Control de Asistencia")
+            .addMessage(expandedBody, nowMillis, senderPerson)
+
+        val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+
+        val builder = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(R.drawable.ic_stat_unermb)
+            .setLargeIcon(largeLogoBitmap)
+            .setContentTitle(senderTitle)
+            .setContentText(shortText)
+            .setSubText("UNERMB PNF Informática")
+            .setStyle(messagingStyle)
+            .setWhen(nowMillis)
+            .setShowWhen(true)
+            .setColor(accentColor)
+            .setColorized(false)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setSound(soundUri, AudioManager.STREAM_ALARM)
+            .setVibrate(VIBRATION_PATTERN_HEADS_UP)
+            .setDefaults(NotificationCompat.DEFAULT_LIGHTS)
+            .setAutoCancel(true)
+            .setContentIntent(contentPendingIntent)
+            .setFullScreenIntent(fullScreenPendingIntent, true)
+            .addAction(
+                R.drawable.ic_stat_unermb,
+                "Marcar como leído",
+                markReadPendingIntent
+            )
+
+        triggerHighGainAudioAndVibrationBoost(context)
+
+        try {
+            NotificationManagerCompat.from(context).notify(notificationId, builder.build())
+        } catch (_: SecurityException) {}
     }
 
     // =========================================================================
@@ -112,35 +319,16 @@ object NotificationHelper {
     ) {
         if (getSessionRole(context) == Constants.ROL_SUPERROOT) return
 
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            (materiaNombre + "_prev10").hashCode(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val notifId = (materiaNombre + "_prev10").hashCode()
+        dispatchHeadsUpBanner(
+            context = context,
+            channelId = Constants.CHANNEL_ID_DOCENTE,
+            notificationId = notifId,
+            senderTitle = "Próxima Clase en 10 Minutos",
+            shortText = "Tu clase de $materiaNombre inicia a las $horaInicio ($bloqueHorario).",
+            expandedBody = "Recordatorio preventivo UNERMB: Tu clase de '$materiaNombre' comenzará en 10 minutos ($bloqueHorario). Recuerda escanear el Código QR Oficial del día al llegar.",
+            accentColor = Color.parseColor("#0266CC")
         )
-
-        val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-
-        val builder = NotificationCompat.Builder(context, Constants.CHANNEL_ID_DOCENTE)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle("Próxima Clase en 10 Minutos - UNERMB")
-            .setContentText("Tu clase de $materiaNombre inicia a las $horaInicio ($bloqueHorario).")
-            .setStyle(
-                NotificationCompat.BigTextStyle()
-                    .bigText("Recordatorio preventivo: Tu clase de '$materiaNombre' comenzará en exactamente 10 minutos ($bloqueHorario).\nRecuerda escanear el Código QR Oficial del día al llegar.")
-            )
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setSound(soundUri)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-
-        try {
-            NotificationManagerCompat.from(context).notify((materiaNombre + "_prev10").hashCode(), builder.build())
-        } catch (_: SecurityException) {}
     }
 
     /**
@@ -155,36 +343,16 @@ object NotificationHelper {
     ) {
         if (getSessionRole(context) == Constants.ROL_SUPERROOT) return
 
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            (materiaNombre + "_delay10").hashCode(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val notifId = (materiaNombre + "_delay10").hashCode()
+        dispatchHeadsUpBanner(
+            context = context,
+            channelId = Constants.CHANNEL_ID_DOCENTE,
+            notificationId = notifId,
+            senderTitle = "Alerta de Retardo (+$minutosRetraso min)",
+            shortText = "No has registrado asistencia para $materiaNombre.",
+            expandedBody = "Han transcurrido $minutosRetraso minutos desde el inicio del bloque $bloqueHorario para '$materiaNombre' y aún no registras entrada. Te encuentras en estado de RETARDO. Escanea el QR Oficial y adjunta justificativo si corresponde.",
+            accentColor = Color.RED
         )
-
-        val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-
-        val builder = NotificationCompat.Builder(context, Constants.CHANNEL_ID_DOCENTE)
-            .setSmallIcon(android.R.drawable.stat_notify_error)
-            .setContentTitle("Alerta de Retardo (+10 min) - UNERMB")
-            .setContentText("No has registrado asistencia para $materiaNombre. Te encuentras en estado de retardo.")
-            .setStyle(
-                NotificationCompat.BigTextStyle()
-                    .bigText("Han transcurrido $minutosRetraso minutos desde el inicio del bloque $bloqueHorario para '$materiaNombre' y aún no has registrado tu entrada.\nTe encuentras en estado de RETARDO. Escanea el Código QR Oficial y adjunta un justificativo si corresponde.")
-            )
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setSound(soundUri)
-            .setColor(Color.RED)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-
-        try {
-            NotificationManagerCompat.from(context).notify((materiaNombre + "_delay10").hashCode(), builder.build())
-        } catch (_: SecurityException) {}
     }
 
     // =========================================================================
@@ -201,30 +369,16 @@ object NotificationHelper {
     ) {
         if (getSessionRole(context) == Constants.ROL_DOCENTE) return
 
-        val intent = Intent(context, MainActivity::class.java)
         val notifId = ("sol_$cedula").hashCode()
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            notifId,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        dispatchHeadsUpBanner(
+            context = context,
+            channelId = Constants.CHANNEL_ID_SUPERROOT,
+            notificationId = notifId,
+            senderTitle = "Nueva Solicitud Docente",
+            shortText = "$docenteNombre (C.I. $cedula) solicita aprobación.",
+            expandedBody = "El docente $docenteNombre (C.I. $cedula) ha enviado una solicitud de registro y se encuentra PENDIENTE de revisión en el Panel de Coordinación PNF Informática.",
+            accentColor = Color.parseColor("#0266CC")
         )
-
-        val builder = NotificationCompat.Builder(context, Constants.CHANNEL_ID_SUPERROOT)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Nueva Solicitud de Registro Docente")
-            .setContentText("$docenteNombre (C.I. $cedula) solicita aprobación en el PNF Informática.")
-            .setStyle(
-                NotificationCompat.BigTextStyle()
-                    .bigText("El docente $docenteNombre (C.I. $cedula) ha enviado una solicitud de registro y se encuentra PENDIENTE de revisión en el Panel de Coordinación.")
-            )
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-
-        try {
-            NotificationManagerCompat.from(context).notify(notifId, builder.build())
-        } catch (_: SecurityException) {}
     }
 
     /**
@@ -240,33 +394,19 @@ object NotificationHelper {
     ) {
         if (getSessionRole(context) == Constants.ROL_DOCENTE) return
 
-        val intent = Intent(context, MainActivity::class.java)
-        val notifId = System.currentTimeMillis().toInt()
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            notifId,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
+        val notifId = ("marcaje_${docenteNombre}_${tipo}_${System.currentTimeMillis() / 1000}").hashCode()
         val statusLabel = if (puntualidad == "A_TIEMPO") "A TIEMPO" else "TARDE (+$minutosRetraso min)"
-        val title = if (puntualidad == "TARDE") "Alerta de Marcaje con Retardo - UNERMB" else "Nuevo Marcaje de $tipo - UNERMB"
+        val title = if (puntualidad == "TARDE") "Marcaje con Retardo Detectado" else "Nuevo Marcaje de $tipo"
 
-        val builder = NotificationCompat.Builder(context, Constants.CHANNEL_ID_SUPERROOT)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle(title)
-            .setContentText("$docenteNombre marcó $tipo ($materia) • Estatus: $statusLabel")
-            .setStyle(
-                NotificationCompat.BigTextStyle()
-                    .bigText("$docenteNombre ha registrado $tipo para '$materia'.\nEstatus de Puntualidad: $statusLabel.")
-            )
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-
-        try {
-            NotificationManagerCompat.from(context).notify(notifId, builder.build())
-        } catch (_: SecurityException) {}
+        dispatchHeadsUpBanner(
+            context = context,
+            channelId = Constants.CHANNEL_ID_SUPERROOT,
+            notificationId = notifId,
+            senderTitle = title,
+            shortText = "$docenteNombre marcó $tipo ($materia) • $statusLabel",
+            expandedBody = "$docenteNombre ha registrado su $tipo para '$materia'. Estatus de Puntualidad: $statusLabel.",
+            accentColor = if (puntualidad == "TARDE") Color.parseColor("#D97706") else Color.parseColor("#059669")
+        )
     }
 
     /**
@@ -281,31 +421,16 @@ object NotificationHelper {
     ) {
         if (getSessionRole(context) == Constants.ROL_DOCENTE) return
 
-        val intent = Intent(context, MainActivity::class.java)
         val notifId = ("inasist_${docenteNombre}_$materia").hashCode()
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            notifId,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        dispatchHeadsUpBanner(
+            context = context,
+            channelId = Constants.CHANNEL_ID_SUPERROOT,
+            notificationId = notifId,
+            senderTitle = "Alerta de Inasistencia / Retardo",
+            shortText = "$docenteNombre sin entrada en $materia (+$minutosTranscurridos min).",
+            expandedBody = "El bloque $bloqueHorario de '$materia' asignado a $docenteNombre inició hace $minutosTranscurridos minutos y aún no registra marcaje de entrada en sede.",
+            accentColor = Color.RED
         )
-
-        val builder = NotificationCompat.Builder(context, Constants.CHANNEL_ID_SUPERROOT)
-            .setSmallIcon(android.R.drawable.stat_notify_error)
-            .setContentTitle("Alerta de Inasistencia / Retardo Docente")
-            .setContentText("$docenteNombre no ha registrado entrada en $materia (+$minutosTranscurridos min).")
-            .setStyle(
-                NotificationCompat.BigTextStyle()
-                    .bigText("El bloque $bloqueHorario de '$materia' asignado a $docenteNombre inició hace $minutosTranscurridos minutos y aún no registra marcaje de entrada.")
-            )
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setColor(Color.RED)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-
-        try {
-            NotificationManagerCompat.from(context).notify(notifId, builder.build())
-        } catch (_: SecurityException) {}
     }
 
     /**
@@ -319,29 +444,15 @@ object NotificationHelper {
     ) {
         if (getSessionRole(context) == Constants.ROL_DOCENTE) return
 
-        val intent = Intent(context, MainActivity::class.java)
-        val notifId = ("justif_${docenteNombre}_${System.currentTimeMillis()}").hashCode()
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            notifId,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val notifId = ("justif_${docenteNombre}_$materia").hashCode()
+        dispatchHeadsUpBanner(
+            context = context,
+            channelId = Constants.CHANNEL_ID_SUPERROOT,
+            notificationId = notifId,
+            senderTitle = "Justificativo de Retardo Recibido",
+            shortText = "$docenteNombre adjuntó justificativo para $materia.",
+            expandedBody = "El docente $docenteNombre envió un justificativo por retardo en '$materia': \"$motivo\". Revíselo en la pestaña de Auditoría.",
+            accentColor = Color.parseColor("#0266CC")
         )
-
-        val builder = NotificationCompat.Builder(context, Constants.CHANNEL_ID_SUPERROOT)
-            .setSmallIcon(android.R.drawable.ic_dialog_email)
-            .setContentTitle("Justificativo de Retardo Recibido")
-            .setContentText("$docenteNombre adjuntó un justificativo para $materia.")
-            .setStyle(
-                NotificationCompat.BigTextStyle()
-                    .bigText("El docente $docenteNombre envió un justificativo por retardo en '$materia':\n\"$motivo\"\nRevíselo en la pestaña de Auditoría.")
-            )
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-
-        try {
-            NotificationManagerCompat.from(context).notify(notifId, builder.build())
-        } catch (_: SecurityException) {}
     }
 }

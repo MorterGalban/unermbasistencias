@@ -62,12 +62,12 @@ object ImageUtils {
 
     /**
      * Normaliza rutas relativas de recursos estáticos ("/uploads/carnet/...", "/uploads/justificativos/...")
-     * concatenándolas con el Base URL activo del servidor.
+     * o preserva cadenas Base64 Data URI ("data:image/jpeg;base64,...") y URLs absolutas ("https://...").
      */
     fun resolveFullMediaUrl(rawUrl: String?, baseUrl: String = Constants.DEFAULT_BASE_URL): String? {
         if (rawUrl.isNullOrBlank()) return null
         val trimmed = rawUrl.trim()
-        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+        if (trimmed.startsWith("data:image/") || trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
             return trimmed
         }
         val cleanBase = baseUrl.trimEnd('/')
@@ -109,8 +109,9 @@ object ImageUtils {
 }
 
 /**
- * Componente reutilizable de Fotografía de Docente con normalización automática de URL
- * y Avatar por defecto de alto contraste si el archivo no existe o falla la conexión.
+ * Componente reutilizable de Fotografía de Docente con soporte nativo dual para
+ * cadenas Base64 ("data:image/jpeg;base64,...") y URLs remotas ("https://..."),
+ * manteniendo un avatar institucional por defecto si carece de registro o falla la carga.
  */
 @Composable
 fun DocenteAvatar(
@@ -123,6 +124,13 @@ fun DocenteAvatar(
 ) {
     val shape = if (isCircle) CircleShape else RoundedCornerShape(10.dp)
     val fullUrl = remember(fotoUrl, baseUrl) { ImageUtils.resolveFullMediaUrl(fotoUrl, baseUrl) }
+    val base64Bitmap = remember(fullUrl) {
+        if (fullUrl != null && fullUrl.startsWith("data:image/")) {
+            ImageUtils.decodeBase64DataUrlToBitmap(fullUrl)
+        } else {
+            null
+        }
+    }
     val initials = remember(nombre, apellido) {
         val n = nombre.trim().firstOrNull()?.uppercaseChar()?.toString() ?: ""
         val a = apellido.trim().firstOrNull()?.uppercaseChar()?.toString() ?: ""
@@ -135,7 +143,14 @@ fun DocenteAvatar(
             .background(UnerbElectricBlue),
         contentAlignment = Alignment.Center
     ) {
-        if (!fullUrl.isNullOrBlank()) {
+        if (base64Bitmap != null) {
+            Image(
+                bitmap = base64Bitmap,
+                contentDescription = "Foto de $nombre $apellido",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else if (!fullUrl.isNullOrBlank() && !fullUrl.startsWith("data:image/")) {
             val painter = rememberAsyncImagePainter(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(fullUrl)
@@ -175,6 +190,49 @@ fun DocenteAvatar(
                 )
             }
         }
+    }
+}
+
+/**
+ * Renderizador dual para imágenes de evidencia de justificativos (soporta Data URI Base64 y URLs remotas HTTPS)
+ */
+@Composable
+fun AdaptiveEvidenceImage(
+    rawUrl: String?,
+    baseUrl: String = Constants.DEFAULT_BASE_URL,
+    contentDescription: String? = null,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Fit
+) {
+    val fullUrl = remember(rawUrl, baseUrl) { ImageUtils.resolveFullMediaUrl(rawUrl, baseUrl) }
+    val base64Bitmap = remember(fullUrl) {
+        if (fullUrl != null && fullUrl.startsWith("data:image/")) {
+            ImageUtils.decodeBase64DataUrlToBitmap(fullUrl)
+        } else {
+            null
+        }
+    }
+
+    if (base64Bitmap != null) {
+        Image(
+            bitmap = base64Bitmap,
+            contentDescription = contentDescription,
+            modifier = modifier,
+            contentScale = contentScale
+        )
+    } else if (!fullUrl.isNullOrBlank()) {
+        val painter = rememberAsyncImagePainter(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(fullUrl)
+                .crossfade(true)
+                .build()
+        )
+        Image(
+            painter = painter,
+            contentDescription = contentDescription,
+            modifier = modifier,
+            contentScale = contentScale
+        )
     }
 }
 

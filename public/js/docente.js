@@ -65,7 +65,12 @@ const DocenteModule = {
 
     if (nameEl) nameEl.textContent = `${user.nombre} ${user.apellido}`;
     if (ciEl) ciEl.textContent = typeof formatCedula === 'function' ? formatCedula(user.cedula) : user.cedula;
-    if (photoEl) photoEl.src = user.foto_carnet_url || '/multimedia/uner.png';
+    if (photoEl) {
+      photoEl.onerror = function() { this.onerror = null; this.src = '/multimedia/uner.png'; };
+      photoEl.src = typeof window.resolvePhotoUrl === 'function'
+        ? window.resolvePhotoUrl(user.foto_carnet_url, '/multimedia/uner.png')
+        : (user.foto_carnet_url || '/multimedia/uner.png');
+    }
   },
 
   // ----------------------------------------------------------------------------

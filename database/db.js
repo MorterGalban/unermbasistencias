@@ -169,10 +169,12 @@ async function initDatabase(retries = 5, delayMs = 3000) {
         }
         console.log('[DB] Tablas relacionales verificadas / creadas exitosamente.');
 
-        // 1.B Migración segura de columnas para el Módulo de Justificación de Retardos en bases de datos existentes
+        // 1.B Migración segura de columnas para el Módulo de Justificación de Retardos y Persistencia Base64 de Fotografías en Railway
         const alterStatements = [
+          "ALTER TABLE usuarios MODIFY COLUMN foto_carnet_url LONGTEXT NOT NULL",
           "ALTER TABLE asistencias ADD COLUMN justificacion_texto TEXT NULL",
-          "ALTER TABLE asistencias ADD COLUMN justificacion_imagen_url VARCHAR(500) NULL",
+          "ALTER TABLE asistencias ADD COLUMN justificacion_imagen_url LONGTEXT NULL",
+          "ALTER TABLE asistencias MODIFY COLUMN justificacion_imagen_url LONGTEXT NULL",
           "ALTER TABLE asistencias ADD COLUMN justificacion_fecha DATETIME NULL",
           "ALTER TABLE asistencias ADD COLUMN justificacion_estado ENUM('SIN_JUSTIFICAR', 'ENVIADA', 'REVISADA') DEFAULT 'SIN_JUSTIFICAR'"
         ];
@@ -185,6 +187,26 @@ async function initDatabase(retries = 5, delayMs = 3000) {
               console.warn('[DB] Nota en migración de columna:', alterErr.message);
             }
           }
+        }
+
+        // 1.C Auto-migración a Base64 Data URI para fotos existentes en disco local (evita pérdida en reinicios de Railway)
+        try {
+          const [usersWithRelativePhoto] = await connection.query(
+            "SELECT id, foto_carnet_url FROM usuarios WHERE foto_carnet_url LIKE '/uploads/%' OR foto_carnet_url LIKE 'uploads/%'"
+          );
+          for (const u of usersWithRelativePhoto) {
+            const relPath = String(u.foto_carnet_url).replace(/^\//, '');
+            const absPath = path.join(__dirname, '..', relPath);
+            if (fs.existsSync(absPath)) {
+              const ext = path.extname(absPath).toLowerCase();
+              const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+              const base64 = fs.readFileSync(absPath).toString('base64');
+              const dataUri = `data:${mime};base64,${base64}`;
+              await connection.query('UPDATE usuarios SET foto_carnet_url = ? WHERE id = ?', [dataUri, u.id]);
+            }
+          }
+        } catch (migPhotoErr) {
+          console.warn('[DB] Nota en migración de fotos a Base64:', migPhotoErr.message);
         }
 
         // 2. Sembrado estricto de materias según pensum2026.txt

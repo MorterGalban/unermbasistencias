@@ -379,7 +379,9 @@ fun RegisterScreen(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = UnerbPrimaryNavy,
-                        contentColor = Color.White
+                        contentColor = Color.White,
+                        disabledContainerColor = UnerbPrimaryNavy.copy(alpha = 0.65f),
+                        disabledContentColor = Color.White
                     )
                 ) {
                     if (uiState.isLoading) {
@@ -390,6 +392,7 @@ fun RegisterScreen(
                         Text(
                             text = "ENVIAR SOLICITUD DE REGISTRO",
                             color = Color.White,
+                            style = MaterialTheme.typography.labelLarge.copy(color = Color.White),
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
                         )

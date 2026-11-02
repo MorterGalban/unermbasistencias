@@ -37,18 +37,32 @@ app.use(
   })
 );
 
-// Habilitar CORS y Parseo de datos
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Habilitar CORS abierto explícito para todas las rutas de API, imágenes y multimedia
+app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] }));
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+});
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
-// Servir recursos estáticos:
+// Servir recursos estáticos con cabeceras CORS abiertas:
+const staticCorsOptions = {
+  setHeaders: (res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+  }
+};
 // 1. multimedia: logos institucionales (uner.png, pnf.png)
-app.use('/multimedia', express.static(path.join(__dirname, 'multimedia')));
+app.use('/multimedia', express.static(path.join(__dirname, 'multimedia'), staticCorsOptions));
 // 2. uploads: fotos tipo carnet subidas por los docentes
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), staticCorsOptions));
 // 3. public: interfaz de usuario web responsive
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), staticCorsOptions));
 
 // Rutas de API RESTful
 app.use('/api/auth', authRoutes);

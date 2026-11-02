@@ -159,7 +159,7 @@ const validateRegistroDocente = async (req, res, next) => {
       });
     }
 
-    // Pasar datos higienizados al controlador
+    // Pasar datos higienizados al controlador (almacenando Base64 persistente directamente en MySQL para evitar pérdida en Railway)
     req.sanitizedData = {
       nombre: nombre.trim(),
       apellido: apellido.trim(),
@@ -167,7 +167,7 @@ const validateRegistroDocente = async (req, res, next) => {
       email: cleanEmail,
       password: password,
       materiasIds: materiasUnicas,
-      fotoUrl: `/uploads/carnet/${req.file.filename}`
+      fotoUrl: req.file.base64DataUri || `/uploads/carnet/${req.file.filename}`
     };
 
     next();

@@ -133,11 +133,13 @@ const SuperrootModule = {
             `).join('')
           : '<span style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;">Sin materias aún (se asignarán tras su aprobación)</span>';
 
-        const photoUrl = docente.foto_carnet_url ? (docente.foto_carnet_url.startsWith('http') ? docente.foto_carnet_url : ((typeof API_BASE !== 'undefined' ? API_BASE : '') + docente.foto_carnet_url)) : '/multimedia/uner.png';
+        const photoUrl = typeof window.resolvePhotoUrl === 'function'
+          ? window.resolvePhotoUrl(docente.foto_carnet_url, '/multimedia/uner.png')
+          : (docente.foto_carnet_url || '/multimedia/uner.png');
 
         card.innerHTML = `
           <div class="docente-profile-row">
-            <img src="${photoUrl}" alt="Foto Carnet" class="docente-photo-thumb" onerror="this.src='/multimedia/uner.png'">
+            <img src="${photoUrl}" alt="Foto Carnet" class="docente-photo-thumb" onerror="this.onerror=null; this.src='/multimedia/uner.png'">
             <div class="docente-profile-data">
               <span class="badge badge-pendiente" style="margin-bottom: 0.3rem;">Solicitud Pendiente</span>
               <div class="docente-fullname">${docente.nombre} ${docente.apellido}</div>
@@ -246,11 +248,14 @@ const SuperrootModule = {
         `).join(' ');
 
         const esAdmin = doc.rol === 'SUPERROOT';
+        const docPhotoUrl = typeof window.resolvePhotoUrl === 'function'
+          ? window.resolvePhotoUrl(doc.foto_carnet_url, '/multimedia/uner.png')
+          : (doc.foto_carnet_url || '/multimedia/uner.png');
 
         return `
           <tr>
             <td style="width: 50px;">
-              <img src="${doc.foto_carnet_url}" alt="Foto" style="width: 42px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid var(--unermb-blue-dark);" onerror="this.src='/multimedia/uner.png'">
+              <img src="${docPhotoUrl}" alt="Foto" style="width: 42px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid var(--unermb-blue-dark);" onerror="this.onerror=null; this.src='/multimedia/uner.png'">
             </td>
             <td>
               <strong>${doc.nombre} ${doc.apellido}</strong><br>

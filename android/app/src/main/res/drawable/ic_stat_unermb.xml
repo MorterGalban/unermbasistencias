@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Emblema Monocromático Transparente Oficial UNERMB para Barra de Estado -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,2L2,7l10,5l10,-5L12,2zM12,4.28L18.4,7.5L12,10.72L5.6,7.5L12,4.28z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M4,10.5v5.5c0,2.76 3.58,5 8,5s8,-2.24 8,-5v-5.5l-8,4l-8,-4zM18,15.6c0,1.32 -2.69,2.9 -6,2.9s-6,-1.58 -6,-2.9v-2.62l6,3l6,-3V15.6z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M21,9v6h1.5V8.25L21,9z" />
+</vector>
+

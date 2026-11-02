@@ -6,6 +6,7 @@ import androidx.work.*
 import dagger.hilt.android.HiltAndroidApp
 import ve.edu.unermb.asistencia.service.ClassReminderWorker
 import ve.edu.unermb.asistencia.service.NotificationHelper
+import ve.edu.unermb.asistencia.service.RealtimeNotificationService
 import ve.edu.unermb.asistencia.service.SuperrootSyncWorker
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -24,10 +25,11 @@ class UnermbApp : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
 
-        // 1. Inicializar Canales de Notificación de Alta Prioridad
+        // 1. Inicializar Canales de Notificación de Alta Prioridad (v2 Heads-Up)
         NotificationHelper.createNotificationChannels(this)
 
-        // 2. Programar Workers periódicos en segundo plano
+        // 2. Iniciar servicio persistente en tiempo real y programar Workers de respaldo
+        RealtimeNotificationService.start(this)
         setupPeriodicWorkers()
     }
 

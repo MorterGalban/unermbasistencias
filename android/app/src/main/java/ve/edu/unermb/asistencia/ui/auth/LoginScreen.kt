@@ -278,7 +278,7 @@ fun LoginScreen(
                             }
                         }
 
-                        // Botón de Inicio de Sesión
+                        // Botón de Inicio de Sesión (Alto contraste forzado: Blanco puro #FFFFFF sobre Azul Marino #002147)
                         Button(
                             onClick = {
                                 focusManager.clearFocus()
@@ -291,7 +291,9 @@ fun LoginScreen(
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = UnerbPrimaryNavy,
-                                contentColor = Color.White
+                                contentColor = Color.White,
+                                disabledContainerColor = UnerbPrimaryNavy.copy(alpha = 0.65f),
+                                disabledContentColor = Color.White
                             )
                         ) {
                             if (uiState.isLoading) {
@@ -304,11 +306,14 @@ fun LoginScreen(
                                 Icon(
                                     imageVector = Icons.Default.Login,
                                     contentDescription = null,
+                                    tint = Color.White,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "INGRESAR AL SISTEMA",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelLarge.copy(color = Color.White),
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 1.sp
                                 )

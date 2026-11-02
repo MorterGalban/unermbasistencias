@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const db = require('../database/db');
+const { normalizeMediaUrl } = require('../middlewares/upload');
 const { BLOQUES_HORARIOS, DIAS_SEMANA } = require('../database/pensumData');
 
 const HMAC_SECRET = process.env.QR_HMAC_SECRET || 'UNERMB_PNF_HMAC_SECRET_KEY_ASISTENCIA_2026';
@@ -370,7 +371,10 @@ const getHistorialPersonal = async (req, res) => {
         estadoActual,
         marcajesHoy: marcajesHoy.length
       },
-      historial: marcajes
+      historial: marcajes.map(m => ({
+        ...m,
+        justificacion_imagen_url: normalizeMediaUrl(m.justificacion_imagen_url, req)
+      }))
     });
   } catch (err) {
     console.error('Error al obtener historial personal:', err);
@@ -473,7 +477,7 @@ const justificarRetardoAsistencia = async (req, res) => {
   const usuarioId = req.user.id;
   const asistenciaId = parseInt(req.params.id || req.body.asistencia_id, 10);
   const motivo = (req.body.motivo || req.body.justificacion_texto || '').trim();
-  const evidenciaUrl = req.file ? `/uploads/justificativos/${req.file.filename}` : null;
+  const evidenciaUrl = req.file ? (req.file.base64DataUri || `/uploads/justificativos/${req.file.filename}`) : null;
 
   if (isNaN(asistenciaId)) {
     return res.status(400).json({
@@ -538,7 +542,10 @@ const justificarRetardoAsistencia = async (req, res) => {
     res.json({
       success: true,
       message: 'Justificativo de retardo enviado exitosamente a la Coordinación del PNF en Informática.',
-      registro: actualizado
+      registro: actualizado ? {
+        ...actualizado,
+        justificacion_imagen_url: normalizeMediaUrl(actualizado.justificacion_imagen_url, req)
+      } : actualizado
     });
   } catch (err) {
     console.error('Error al guardar justificación de retardo:', err);
